@@ -62,6 +62,7 @@ This is a **much simpler** cousin of Build Bar:
 - `name` text, `email` text
 - `luma_status` text — one of `pending | approved | declined | waitlist`
 - `checked_in_at` timestamptz null (from Luma check-in; gates the survey)
+- `answers` jsonb null (raw Luma registration answers, keyed by `question_id`)
 - `notion_page_id` text null
 - `last_synced_hash` text null (echo guard)
 - `created_at`, `updated_at` timestamptz
@@ -82,17 +83,43 @@ This is a **much simpler** cousin of Build Bar:
 
 ## 5. Notion guest database
 
-Created by a one-time setup script (`scripts/create-notion-database.ts`). Properties:
+Created by a one-time setup script (`scripts/create-notion-database.ts`). The property
+set mirrors the Notion 101 Luma registration form so every RSVP answer lands in Notion.
+
+**Select option lists are derived at setup time** by reading the event's
+`registration_questions` from the Luma API (`getLumaEvent`), so the Notion select options
+always match the live form (and we never hand-transcribe truncated lists). Each answer is
+matched back to its property by Luma `question_id` (pinned at setup), not by label.
+
+### System / triage properties
 - **Name** (title)
-- **Email** (email)
+- **Email** (email) — required on the form
 - **Status** (select: `Pending`, `Approved`, `Declined`, `Waitlist`) — the triage control
-- **Event** (text — event name; simple, no relation needed)
+- **Checked In** (date — from Luma `checked_in_at`; gates the survey)
+- **Event** (text — event name; no relation needed)
 - **Registered At** (date)
-- **Company**, **Role** (rich text, optional — populated if present on the Luma RSVP)
 - **Luma Guest ID**, **Luma Event ID** (rich text, hidden — join keys)
+
+### Registration-answer properties (from the Luma form)
+| Notion property | Type | Luma question |
+|-----------------|------|----------------|
+| **Company** | rich text | "What company do you own/work for?" |
+| **Job Title** | rich text | job-title helper on the company question (only if Luma sends it as a separate answer; else folded into Company) |
+| **Company Size** | select `<10 people / 10-50 / 50-100 / 100-500 / 500+` | "What is the size of your company?" |
+| **Business Track** | select `Brick & mortar / E-comm & online / Services / Not sure` | "Which track best fits your business?" |
+| **Notion Account Email** | email | "What email do you use for Notion (if you have an account)?" |
+| **Notion Plan** | select `Enterprise / Business / Plus / Free / No Account` | "What type of Notion plan are you on?" |
+| **Notion Experience** | select (4 options, from Luma) | "How would you rate your experience level with Notion?" |
+| **Why Attending** | multi-select (6 options, from Luma) | "Why do you want to come to Notion 101?" |
+| **Notes** | rich text | "Anything you want us to know?" |
 
 Approve/decline = change **Status**, or two buttons ("Approve"/"Decline") that set Status
 and fire the Notion "Send webhook" automation with an `X-Action` header.
+
+> Open item: the company question's description ("What is your job title?") suggests it may
+> capture both company and title. Luma sends one answer per question — if only one value
+> arrives it maps to **Company**; **Job Title** stays as a separate property for a possible
+> future dedicated question. Confirm during setup against a real RSVP payload.
 
 ## 6. Flows
 
@@ -104,10 +131,12 @@ rows for each. Protected by a short-lived form token (reuse Build Bar's `issueFo
 
 ### 6.2 Luma → Notion — `POST /api/webhooks/luma`
 1. HMAC-verify the payload (`LUMA_WEBHOOK_SECRET`); reuse `lib/luma/verify.ts`.
-2. Parse `guest.created` / `guest.updated` (name, email, `approval_status`, `checked_in_at`).
+2. Parse `guest.created` / `guest.updated` (name, email, `approval_status`,
+   `checked_in_at`, and registration answers keyed by `question_id`).
 3. **If the event isn't registered → log `skipped` and return 200.**
-4. Upsert the guest in Neon (including `checked_in_at`).
-5. Create/update the Notion row; stamp `last_synced_hash`.
+4. Upsert the guest in Neon (including `checked_in_at` and raw `answers`).
+5. Create/update the Notion row — map each answer to its property via the pinned
+   `question_id` map (§5); stamp `last_synced_hash`.
 
 ### 6.3 Notion → Luma (approve/decline) — `POST /api/webhooks/notion`
 Notion "Send webhook" automation on Status change / Approve/Decline button.
