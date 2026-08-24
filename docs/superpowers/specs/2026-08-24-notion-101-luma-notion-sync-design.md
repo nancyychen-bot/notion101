@@ -136,7 +136,7 @@ via `email_log` unique key.
 
 | Kind | Trigger | Recipient | Notes |
 |------|---------|-----------|-------|
-| `approved` | Guest approved (Notion or claim) | Guest | Custom branded confirmation; **.ics event invite attached**. Suppresses Luma's native email. |
+| `approved` | Guest approved in Notion | Guest | Custom branded confirmation; **.ics event invite attached**. Suppresses Luma's native email. |
 | `decline` | Guest declined (manual or auto) | Guest | Polite decline. |
 | `reminder_3d` | Cron, 3 days before event | Approved guests | Event details + **"start your free Notion trial" CTA** (`FREE_TRIAL_URL`). |
 | `reminder_1d` | Cron, 1 day before event | Approved guests | Same body/CTA as 3d, different framing. |
