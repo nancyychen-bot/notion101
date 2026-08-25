@@ -71,7 +71,7 @@ export async function registerEventFromLuma(input: string): Promise<RegisterResu
       answers,
     });
     try {
-      await pushGuestToNotion(g, event.name);
+      await pushGuestToNotion(g, event.name, event.luma_event_id);
       imported++;
     } catch (err) {
       await logSync({

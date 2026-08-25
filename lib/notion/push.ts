@@ -15,9 +15,14 @@ function syncedFields(g: GuestRow) {
 
 /**
  * Create (or update) the Notion row for a guest and stamp the echo hash.
- * `eventName` labels the Event column. Best-effort answer mapping via QUESTION_MAP.
+ * `eventName` labels the Event column. `lumaEventId` labels the Luma Event ID column.
+ * Best-effort answer mapping via QUESTION_MAP.
  */
-export async function pushGuestToNotion(g: GuestRow, eventName: string | null): Promise<void> {
+export async function pushGuestToNotion(
+  g: GuestRow,
+  eventName: string | null,
+  lumaEventId: string | null,
+): Promise<void> {
   const notion = getNotionClient();
   const answerProps = answersToProperties((g.answers as Record<string, string>) ?? {}, QUESTION_MAP);
   const props: Record<string, unknown> = {
@@ -25,7 +30,7 @@ export async function pushGuestToNotion(g: GuestRow, eventName: string | null): 
     [PROP.status]: { select: { name: STATUS_TO_NOTION[g.luma_status] } },
     [PROP.event]: richText(eventName ?? ""),
     [PROP.lumaGuestId]: richText(g.luma_guest_id),
-    [PROP.lumaEventId]: richText(g.event_id),
+    [PROP.lumaEventId]: richText(lumaEventId ?? ""),
     ...(g.email ? { [PROP.email]: { email: g.email } } : {}),
     ...(g.checked_in_at ? { [PROP.checkedIn]: { date: { start: g.checked_in_at } } } : {}),
     ...answerProps,
