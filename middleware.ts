@@ -2,9 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isValidSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 /**
- * Guard the dashboard (`/`) and signup (`/add-event`) pages. All API routes,
- * `/login`, and static assets are excluded from the matcher so external callers
- * (Luma, Notion, Vercel Cron) can reach webhooks/cron/health without a session.
+ * Guard the dashboard (`/`) only. `/add-event` is intentionally NOT session-gated:
+ * per design §6.1 it is embedded in a Notion iframe and protected by a short-lived
+ * form token instead (a sameSite=lax session cookie wouldn't be sent in the iframe).
+ * All API routes, `/login`, and static assets are excluded from the matcher so
+ * external callers (Luma, Notion, Vercel Cron) reach webhooks/cron/health without a session.
  */
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
@@ -22,10 +24,10 @@ export async function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-// Guard only the dashboard root and the add-event page. Everything else
-// (login, all API routes, Next internals, static assets) is excluded from the
-// matcher and remains fully public. Webhook/cron/health routes are never
-// matched, so external callers are never challenged for a session cookie.
+// Guard only the dashboard root. Everything else (login, /add-event, all API
+// routes, Next internals, static assets) is excluded from the matcher and remains
+// fully public. /add-event is form-token protected (design §6.1); webhook/cron/health
+// routes are never matched, so external callers are never challenged for a session.
 export const config = {
-  matcher: ["/", "/add-event"],
+  matcher: ["/"],
 };
