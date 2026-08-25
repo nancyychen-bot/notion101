@@ -3,7 +3,8 @@ import { getEventById } from "../db/events";
 import { reserveCommsSlot, finalizeComms } from "../db/email-log";
 import { sendEmail } from "./resend";
 import { buildInvite, inviteAttachment, fromAddressEmail } from "./ics";
-import { renderEmail, type EmailKind, type EmailFields } from "./templates";
+import { renderKind, type EmailKind, type EmailFields } from "./templates";
+import { getLiveOverrideMap } from "../db/email-overrides";
 import { logSync } from "../db/sync-log";
 import { env } from "../env";
 
@@ -34,7 +35,8 @@ export async function sendGuestEmail(guestId: string, kind: EmailKind): Promise<
       freeTrialUrl: env.app.freeTrialUrl(),
       eventUrl: ev?.public_url ?? null,
     };
-    const rendered = renderEmail(kind, fields);
+    const overrides = await getLiveOverrideMap();
+    const rendered = renderKind(kind, fields, overrides);
 
     let attachments: ReturnType<typeof inviteAttachment>[] | undefined;
     if (kind === "approved" && ev?.start_at) {

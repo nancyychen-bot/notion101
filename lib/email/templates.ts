@@ -1,4 +1,12 @@
-export type EmailKind = "approved" | "decline" | "reminder_3d" | "reminder_1d" | "survey";
+import { renderTemplate } from "./render";
+
+export type EmailKind =
+  | "approved"
+  | "decline"
+  | "upgrade_3d"
+  | "reminder_1d_free"
+  | "reminder_1d_paid"
+  | "feedback";
 
 export interface EmailFields {
   guestName: string | null;
@@ -12,78 +20,139 @@ export interface EmailFields {
 
 export interface RenderedEmail { subject: string; html: string; text: string; }
 
-const SIGNOFF = "The Notion Community Team";
-const firstName = (n: string | null) => (n ?? "there").trim().split(/\s+/)[0] || "there";
-const p = (s: string) => `<p style="margin:0 0 16px">${s}</p>`;
-const wrap = (body: string) =>
-  `<div style="font-family:ui-sans-serif,system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;max-width:520px">${body}</div>`;
-const btn = (href: string, label: string) =>
-  `<p style="margin:24px 0"><a href="${href}" style="background:#111;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block">${label}</a></p>`;
-const details = (f: EmailFields) =>
-  [f.eventDate ? `🗓  ${f.eventDate}` : null, f.location ? `📍  ${f.location}` : null]
-    .filter(Boolean).join("<br>");
-
-export function renderEmail(kind: EmailKind, f: EmailFields): RenderedEmail {
-  const fn = firstName(f.guestName);
-  const ev = f.eventName ?? "Notion 101";
-  const trial = `Come early to Notion? ${"You can start a free Notion trial here"} — <a href="${f.freeTrialUrl}">${f.freeTrialUrl}</a>.`;
-
-  switch (kind) {
-    case "approved": {
-      const subject = `You're in — ${ev} 🎉`;
-      const bodyHtml =
-        p(`Hi ${fn},`) +
-        p(`Great news — you're approved for <strong>${ev}</strong>. We can't wait to build with you!`) +
-        (details(f) ? p(details(f)) : "") +
-        p(`A calendar invite is attached so the time is locked in.`) +
-        (f.eventUrl ? p(`Event page: <a href="${f.eventUrl}">${f.eventUrl}</a>`) : "") +
-        p(trial) +
-        p(`See you soon,<br>${SIGNOFF}`);
-      const text =
-        `Hi ${fn},\n\nYou're approved for ${ev}. We can't wait to build with you!\n` +
-        `${f.eventDate ?? ""} ${f.location ?? ""}\n\nA calendar invite is attached.\n` +
-        `Start a free Notion trial: ${f.freeTrialUrl}\n\nSee you soon,\n${SIGNOFF}`;
-      return { subject, html: wrap(bodyHtml), text };
-    }
-    case "decline": {
-      const subject = `An update on your ${ev} registration`;
-      const bodyHtml =
-        p(`Hi ${fn},`) +
-        p(`Thanks so much for your interest in <strong>${ev}</strong>. Unfortunately we weren't able to confirm you a spot this time — these sessions fill up fast.`) +
-        p(`We'd love to see you at a future event. In the meantime, you can keep building: <a href="${f.freeTrialUrl}">start a free Notion trial</a>.`) +
-        p(`Thanks,<br>${SIGNOFF}`);
-      const text =
-        `Hi ${fn},\n\nThanks for your interest in ${ev}. Unfortunately we couldn't confirm you a spot this time.\n` +
-        `We'd love to see you at a future event. Start a free Notion trial: ${f.freeTrialUrl}\n\nThanks,\n${SIGNOFF}`;
-      return { subject, html: wrap(bodyHtml), text };
-    }
-    case "reminder_3d":
-    case "reminder_1d": {
-      const when = kind === "reminder_3d" ? "in 3 days" : "tomorrow";
-      const subject = `${ev} is ${when} — see you there!`;
-      const bodyHtml =
-        p(`Hi ${fn},`) +
-        p(`Quick reminder that <strong>${ev}</strong> is ${when}.`) +
-        (details(f) ? p(details(f)) : "") +
-        (f.eventUrl ? btn(f.eventUrl, "View event details") : "") +
-        p(`New to Notion? ${trial}`) +
-        p(`See you soon,<br>${SIGNOFF}`);
-      const text =
-        `Hi ${fn},\n\nReminder: ${ev} is ${when}.\n${f.eventDate ?? ""} ${f.location ?? ""}\n` +
-        `${f.eventUrl ? `Details: ${f.eventUrl}\n` : ""}Start a free Notion trial: ${f.freeTrialUrl}\n\nSee you soon,\n${SIGNOFF}`;
-      return { subject, html: wrap(bodyHtml), text };
-    }
-    case "survey": {
-      const subject = `Thanks for coming to ${ev} — 2 quick questions`;
-      const url = f.surveyUrl ?? f.freeTrialUrl;
-      const bodyHtml =
-        p(`Hi ${fn},`) +
-        p(`Thanks for joining us at <strong>${ev}</strong>! We'd love your feedback — it takes under two minutes.`) +
-        btn(url, "Share your feedback") +
-        p(`Thanks again,<br>${SIGNOFF}`);
-      const text =
-        `Hi ${fn},\n\nThanks for joining ${ev}! Please share quick feedback: ${url}\n\nThanks again,\n${SIGNOFF}`;
-      return { subject, html: wrap(bodyHtml), text };
-    }
-  }
+export interface TemplateDef {
+  label: string;
+  audience: string;
+  when: string;
+  subject: string;
+  body: string;
 }
+
+export type OverrideMap = Map<string, { subject?: string | null; body?: string | null }>;
+
+const SIGNOFF = "The Notion Community Team";
+const b = (...lines: string[]) => lines.join("\n");
+
+export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
+  approved: {
+    label: "Approved — you're in",
+    audience: "All approved guests",
+    when: "On approval (with calendar invite)",
+    subject: "You're in — {{eventName}} 🎉",
+    body: b(
+      "Hi {{firstName}},", "",
+      "Great news — you're **approved for {{eventName}}**. We can't wait to build with you!", "",
+      "A calendar invite is attached so the time is locked in.", "",
+      "Event page: {{eventUrl}}", "",
+      "New to Notion? **[Start a free Notion trial]({{trialLink}})** before you come.", "",
+      "See you soon,", SIGNOFF,
+    ),
+  },
+  decline: {
+    label: "Declined — update on your registration",
+    audience: "Declined guests",
+    when: "On decline",
+    subject: "An update on your {{eventName}} registration",
+    body: b(
+      "Hi {{firstName}},", "",
+      "Thanks so much for your interest in **{{eventName}}**. Unfortunately we weren't able to confirm you a spot this time — these sessions fill up fast.", "",
+      "We'd love to see you at a future event. In the meantime, you can keep building: **[start a free Notion trial]({{trialLink}})**.", "",
+      "Thanks,", SIGNOFF,
+    ),
+  },
+  upgrade_3d: {
+    label: "Upgrade nudge — 3 days before",
+    audience: "Free & No-Account plans only",
+    when: "3 days before the event",
+    subject: "One thing to do before {{eventName}} ✨",
+    body: b(
+      "Hi {{firstName}},", "",
+      "You're **confirmed for {{eventName}}** — we can't wait to build with you!", "",
+      "Before you arrive, **[start your free Notion trial]({{trialLink}})** — it takes about a minute. You'll get much more out of the session with a full-featured workspace ready to go.", "",
+      "See you soon,", SIGNOFF,
+    ),
+  },
+  reminder_1d_free: {
+    label: "Day-before reminder (Free)",
+    audience: "Free & No-Account plans only",
+    when: "1 day before the event",
+    subject: "{{eventName}} is tomorrow ✨",
+    body: b(
+      "Hi {{firstName}},", "",
+      "Quick reminder — **{{eventName}}** is **tomorrow**. We can't wait to build with you!", "",
+      "**Before you come:**",
+      "✅ Bring your laptop + the workspace or question you want help with",
+      "✅ **[Start your free Notion trial]({{trialLink}})** if you haven't yet (about a minute)", "",
+      "See you tomorrow,", SIGNOFF,
+    ),
+  },
+  reminder_1d_paid: {
+    label: "Day-before reminder (paid)",
+    audience: "Paid plans (Plus / Business / Enterprise)",
+    when: "1 day before the event",
+    subject: "{{eventName}} is tomorrow ✨",
+    body: b(
+      "Hi {{firstName}},", "",
+      "Quick reminder — **{{eventName}}** is **tomorrow**. We can't wait to build with you!", "",
+      "**What to bring:**",
+      "✅ Your laptop + the workspace or question you want help with", "",
+      "See you tomorrow,", SIGNOFF,
+    ),
+  },
+  feedback: {
+    label: "Post-event feedback",
+    audience: "Checked-in attendees",
+    when: "A few hours after the event ends",
+    subject: "How was {{eventName}}? (2 mins) 💜",
+    body: b(
+      "Hi {{firstName}},", "",
+      "Thank you so much for coming to **{{eventName}}** — it was so great to have you, and we hope you left with something you're excited to build.", "",
+      "We'd love your feedback — it takes about **2 minutes** and directly shapes the next event.", "",
+      "👉 **[Share your feedback]({{feedbackLink}})**", "",
+      "With gratitude,", SIGNOFF,
+    ),
+  },
+};
+
+/** Placeholder legend for the editor. */
+export const PLACEHOLDERS: Array<{ token: string; desc: string }> = [
+  { token: "{{firstName}}", desc: "Guest's first name (falls back to 'there')" },
+  { token: "{{eventName}}", desc: "Event name (falls back to 'Notion 101')" },
+  { token: "{{eventDate}}", desc: "Event date, e.g. Monday, December 18" },
+  { token: "{{eventUrl}}", desc: "Public Luma event page" },
+  { token: "{{trialLink}}", desc: "Free Notion trial URL" },
+  { token: "{{feedbackLink}}", desc: "Post-event feedback form URL" },
+];
+
+const firstName = (n: string | null) => (n ?? "there").trim().split(/\s+/)[0] || "there";
+
+/** Map EmailFields → placeholder token values. */
+export function buildVars(f: EmailFields): Record<string, string> {
+  return {
+    firstName: firstName(f.guestName),
+    eventName: f.eventName ?? "Notion 101",
+    eventDate: f.eventDate ?? "",
+    eventUrl: f.eventUrl ?? "",
+    trialLink: f.freeTrialUrl,
+    feedbackLink: f.surveyUrl ?? f.freeTrialUrl,
+  };
+}
+
+/** Render a kind's subject+html+text, preferring a published override per field. */
+export function renderKind(kind: EmailKind, f: EmailFields, overrides?: OverrideMap): RenderedEmail {
+  const def = TEMPLATE_REGISTRY[kind];
+  const ov = overrides?.get(kind);
+  const content = { subject: ov?.subject ?? def.subject, body: ov?.body ?? def.body };
+  return renderTemplate(content, buildVars(f));
+}
+
+/** Sample data for the editor's live preview. */
+export const SAMPLE_FIELDS: EmailFields = {
+  guestName: "Ada Lovelace",
+  eventName: "Notion 101 for Small Businesses",
+  eventDate: "Monday, December 18",
+  location: null,
+  surveyUrl: "https://example.com/feedback",
+  freeTrialUrl: "https://www.notion.so/product",
+  eventUrl: "https://luma.com/notion101",
+};

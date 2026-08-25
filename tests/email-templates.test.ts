@@ -1,32 +1,37 @@
 import { describe, it, expect } from "vitest";
-import { renderEmail, type EmailKind, type EmailFields } from "../lib/email/templates";
+import { TEMPLATE_REGISTRY, renderKind, buildVars, SAMPLE_FIELDS, type EmailKind } from "../lib/email/templates";
 
-const fields: EmailFields = {
-  guestName: "Ada Lovelace",
-  eventName: "Notion 101 — NYC",
-  eventDate: "Wednesday, August 26",
-  location: "Notion HQ",
-  surveyUrl: "https://survey.example.com/x",
-  freeTrialUrl: "https://www.notion.so/product",
-  eventUrl: "https://luma.com/notion101",
-};
+const KINDS: EmailKind[] = ["approved", "decline", "upgrade_3d", "reminder_1d_free", "reminder_1d_paid", "feedback"];
 
-const kinds: EmailKind[] = ["approved", "decline", "reminder_3d", "reminder_1d", "survey"];
-
-describe("renderEmail", () => {
-  it.each(kinds)("renders %s with non-empty subject/html/text", (kind) => {
-    const r = renderEmail(kind, fields);
-    expect(r.subject.length).toBeGreaterThan(0);
-    expect(r.html.length).toBeGreaterThan(0);
-    expect(r.text.length).toBeGreaterThan(0);
-    expect(r.text).toContain("Ada"); // greets by first name
-  });
-  it("reminders include the free-trial CTA link", () => {
-    for (const k of ["reminder_3d", "reminder_1d"] as EmailKind[]) {
-      expect(renderEmail(k, fields).html).toContain(fields.freeTrialUrl);
+describe("TEMPLATE_REGISTRY", () => {
+  it("has every kind with audience + when labels", () => {
+    for (const k of KINDS) {
+      expect(TEMPLATE_REGISTRY[k]).toBeTruthy();
+      expect(TEMPLATE_REGISTRY[k].audience.length).toBeGreaterThan(0);
+      expect(TEMPLATE_REGISTRY[k].when.length).toBeGreaterThan(0);
     }
   });
-  it("survey includes the survey link", () => {
-    expect(renderEmail("survey", fields).html).toContain(fields.surveyUrl!);
+});
+
+describe("buildVars", () => {
+  it("derives firstName and maps links", () => {
+    const v = buildVars({ ...SAMPLE_FIELDS, guestName: "Ada Lovelace" });
+    expect(v.firstName).toBe("Ada");
+    expect(v.trialLink).toBe(SAMPLE_FIELDS.freeTrialUrl);
+  });
+});
+
+describe("renderKind", () => {
+  it("renders the default subject/body for a kind", () => {
+    const r = renderKind("feedback", { ...SAMPLE_FIELDS, guestName: "Ada" });
+    expect(r.subject.length).toBeGreaterThan(0);
+    expect(r.html).toContain("Ada");
+  });
+
+  it("prefers a published override over the default", () => {
+    const overrides = new Map([["feedback", { subject: "Custom subj", body: "Custom **body**" }]]);
+    const r = renderKind("feedback", { ...SAMPLE_FIELDS, guestName: "Ada" }, overrides);
+    expect(r.subject).toBe("Custom subj");
+    expect(r.html).toContain("<strong>body</strong>");
   });
 });
