@@ -57,12 +57,20 @@ export function Dashboard({ events, emails, syncs }: DashboardProps) {
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Notion 101</h1>
-        <a
-          href="/add-event"
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Track an event
-        </a>
+        <div className="flex gap-2">
+          <a
+            href="/settings/emails"
+            className="rounded border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            Emails
+          </a>
+          <a
+            href="/add-event"
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Track an event
+          </a>
+        </div>
       </div>
 
       {/* ── Events ── */}
