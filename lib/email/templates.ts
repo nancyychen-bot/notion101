@@ -44,7 +44,7 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
       "Great news — you're **approved for {{eventName}}**. We can't wait to build with you!", "",
       "A calendar invite is attached so the time is locked in.", "",
       "Event page: {{eventUrl}}", "",
-      "New to Notion? **[Start a free Notion trial]({{trialLink}})** before you come.", "",
+      "On a Free plan? **[Start a free Notion trial]({{trialLink}})** before you come.", "",
       "See you soon,", SIGNOFF,
     ),
   },
