@@ -39,8 +39,10 @@ export async function pushGuestToNotion(
   if (g.notion_page_id) {
     await notion.pages.update({ page_id: g.notion_page_id, properties: props as never });
   } else {
+    // The installed @notionhq/client defaults to the 2022-06-28 API (no data
+    // sources — a database IS its own data source), so we parent by database_id.
     const created = await notion.pages.create({
-      parent: { type: "data_source_id", data_source_id: env.notion.guestsDataSourceId() } as never,
+      parent: { database_id: env.notion.guestsDataSourceId() } as never,
       properties: props as never,
     });
     await setNotionPageId(g.id, created.id);
