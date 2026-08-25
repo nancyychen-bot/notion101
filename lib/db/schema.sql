@@ -50,3 +50,14 @@ create table if not exists sync_log (
   payload jsonb,
   created_at timestamptz not null default now()
 );
+
+create table if not exists email_overrides (
+  key text primary key,
+  draft_subject text,
+  draft_body text,
+  draft_note text,
+  draft_updated_at timestamptz,
+  live_subject text,
+  live_body text,
+  live_updated_at timestamptz
+);
