@@ -1,4 +1,5 @@
 import { resolveLumaEventId, getLumaEvent, listEventGuests } from "../luma/client";
+import { normalizeAnswers } from "../luma/answers";
 import { upsertEvent, getEventByLumaId } from "../db/events";
 import { upsertGuest } from "../db/guests";
 import { pushGuestToNotion } from "../notion/push";
@@ -55,10 +56,7 @@ export async function registerEventFromLuma(input: string): Promise<RegisterResu
   const guests = await listEventGuests(lumaEventId);
   let imported = 0;
   for (const entry of guests) {
-    const answers: Record<string, string> = {};
-    for (const a of entry.registration_answers ?? []) {
-      if (a.question_id != null) answers[a.question_id] = String(a.value ?? "");
-    }
+    const answers = normalizeAnswers(entry.registration_answers);
     const checkedIn =
       (entry.event_tickets ?? []).find((t) => t.checked_in_at)?.checked_in_at ?? null;
     const g = await upsertGuest({

@@ -1,1 +1,11 @@
-{}
+{
+  "nhidmktb": { "prop": "Company", "kind": "rich_text" },
+  "nhidmktb::job_title": { "prop": "Job Title", "kind": "rich_text" },
+  "by766naw": { "prop": "Company Size", "kind": "select" },
+  "s1ai9ywz": { "prop": "Business Track", "kind": "select" },
+  "1uc5woee": { "prop": "Notion Account Email", "kind": "email" },
+  "ialukd7h": { "prop": "Notion Plan", "kind": "select" },
+  "mve7yzuu": { "prop": "Notion Experience", "kind": "select" },
+  "lxz8zp1m": { "prop": "Why Attending", "kind": "multi_select" },
+  "6cec5vci": { "prop": "Notes", "kind": "rich_text" }
+}

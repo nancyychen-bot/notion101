@@ -1,4 +1,5 @@
 import type { LumaStatus } from "./client";
+import { normalizeAnswers } from "./answers";
 
 export interface ParsedGuest {
   type: string;
@@ -29,15 +30,12 @@ export function parseGuestWebhook(body: unknown): ParsedGuest | null {
     guest?: {
       api_id?: string; name?: string; email?: string;
       approval_status?: string; checked_in_at?: string | null;
-      registration_answers?: { question_id?: string; answer?: unknown }[];
+      registration_answers?: { question_id?: string; question_type?: string; value?: unknown; answer?: unknown }[];
     };
   };
   const guest = b.guest;
   if (!guest?.api_id) return null;
-  const answers: Record<string, string> = {};
-  for (const a of guest.registration_answers ?? []) {
-    if (a.question_id != null) answers[a.question_id] = String(a.answer ?? "");
-  }
+  const answers = normalizeAnswers(guest.registration_answers);
   return {
     type: b.type ?? "unknown",
     lumaEventId: b.event?.api_id ?? "",
