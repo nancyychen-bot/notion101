@@ -22,7 +22,7 @@ export async function dispatchSurvey(now: Date = new Date()): Promise<{ sent: nu
     const end = ev.end_at ?? ev.start_at;
     if (!end || !eventEndedInWindow(end, now)) continue;
     for (const g of await listCheckedInForEvent(ev.id)) {
-      await sendGuestEmail(g.id, "survey");
+      await sendGuestEmail(g.id, "feedback");
       sent++;
     }
   }
