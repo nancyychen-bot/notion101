@@ -37,9 +37,19 @@ export function substitute(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
 }
 
-/** Drop empty "()", dangling "— <rest>"/"at", collapse spaces. */
+/**
+ * Tidy a substituted subject: drop empty "()", strip a trailing em-dash that
+ * dangles because its token resolved to nothing (e.g. "Notion 101 — {{x}}" or
+ * "Notion 101 — "), drop a trailing "at", and collapse spaces. A dash followed
+ * by real words (e.g. "Save your spot — today") is left intact.
+ */
 function cleanupSubject(s: string): string {
-  return s.replace(/\s*\(\s*\)/g, "").replace(/\s+—\s*\S*\s*$/i, "").replace(/\s+(at)\s*$/i, "").replace(/\s{2,}/g, " ").trim();
+  return s
+    .replace(/\s*\(\s*\)/g, "")
+    .replace(/\s+—\s*(\{\{\w+\}\})?\s*$/i, "")
+    .replace(/\s+(at)\s*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 const wrapDiv = (inner: string) =>

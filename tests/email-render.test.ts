@@ -25,5 +25,11 @@ describe("renderTemplate", () => {
   it("cleans up empty parens/dangling dashes in subjects", () => {
     expect(renderTemplate({ subject: "Event ({{missing}})", body: "" }, {}).subject).toBe("Event ({{missing}})");
     expect(renderTemplate({ subject: "Notion 101 — {{x}}", body: "" }, {}).subject).toBe("Notion 101");
+    expect(renderTemplate({ subject: "Notion 101 — ", body: "" }, {}).subject).toBe("Notion 101");
+  });
+
+  it("keeps a dash followed by real words (does not over-strip user subjects)", () => {
+    expect(renderTemplate({ subject: "Save your spot — today", body: "" }, {}).subject).toBe("Save your spot — today");
+    expect(renderTemplate({ subject: "You're in — {{ev}} 🎉", body: "" }, { ev: "Notion 101" }).subject).toBe("You're in — Notion 101 🎉");
   });
 });
