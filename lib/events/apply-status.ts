@@ -60,7 +60,7 @@ export function defaultApplyDeps(direction: string, guestId: string): ApplyStatu
     sendEmail: (id, kind) => sendGuestEmail(id, kind),
     pushToNotion: async (g) => {
       const ev = await getEventById(g.event_id);
-      await pushGuestToNotion(g, ev?.name ?? null, ev?.luma_event_id ?? null);
+      await pushGuestToNotion(g, ev);
     },
     getEventLumaId: async (eventId) => (await getEventById(eventId))?.luma_event_id ?? null,
     log: (e) => logSync({ direction, result: e.error ? "error" : "applied", guestId, action: e.action, note: e.note }),

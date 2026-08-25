@@ -5,6 +5,8 @@ export const PROP = {
   status: "Status",
   checkedIn: "Checked In",
   event: "Event",
+  eventDate: "Event Date",
+  location: "Location",
   registeredAt: "Registered At",
   company: "Company",
   jobTitle: "Job Title",

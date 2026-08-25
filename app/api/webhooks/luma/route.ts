@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     answers: parsed.answers,
   });
   try {
-    await pushGuestToNotion(guest, event.name, event.luma_event_id);
+    await pushGuestToNotion(guest, event);
     await logSync({ direction: "luma_in", result: "applied", guestId: guest.id, action: `guest_${parsed.type}` });
   } catch (err) {
     await logSync({ direction: "luma_in", result: "error", guestId: guest.id, action: "notion_push", note: err instanceof Error ? err.message : String(err) });

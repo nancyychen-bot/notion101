@@ -3,6 +3,7 @@ import { PROP, STATUS_TO_NOTION, QUESTION_MAP } from "./schema";
 import { answersToProperties } from "./mappers";
 import { syncedFieldsHash } from "../events/hash";
 import { setNotionPageId, setSyncedHash, type GuestRow } from "../db/guests";
+import type { EventRow } from "../db/events";
 import { env } from "../env";
 
 function richText(v: string) { return { rich_text: [{ text: { content: v } }] }; }
@@ -15,24 +16,25 @@ function syncedFields(g: GuestRow) {
 
 /**
  * Create (or update) the Notion row for a guest and stamp the echo hash.
- * `eventName` labels the Event column. `lumaEventId` labels the Luma Event ID column.
- * Best-effort answer mapping via QUESTION_MAP.
+ * `event` supplies the Event name/id, plus Event Date (start) and Location,
+ * all captured at ingestion. Best-effort answer mapping via QUESTION_MAP.
  */
 export async function pushGuestToNotion(
   g: GuestRow,
-  eventName: string | null,
-  lumaEventId: string | null,
+  event: EventRow | null,
 ): Promise<void> {
   const notion = getNotionClient();
   const answerProps = answersToProperties((g.answers as Record<string, string>) ?? {}, QUESTION_MAP);
   const props: Record<string, unknown> = {
     [PROP.name]: title(g.name ?? g.email ?? "Guest"),
     [PROP.status]: { select: { name: STATUS_TO_NOTION[g.luma_status] } },
-    [PROP.event]: richText(eventName ?? ""),
+    [PROP.event]: richText(event?.name ?? ""),
     [PROP.lumaGuestId]: richText(g.luma_guest_id),
-    [PROP.lumaEventId]: richText(lumaEventId ?? ""),
+    [PROP.lumaEventId]: richText(event?.luma_event_id ?? ""),
     ...(g.email ? { [PROP.email]: { email: g.email } } : {}),
     ...(g.checked_in_at ? { [PROP.checkedIn]: { date: { start: g.checked_in_at } } } : {}),
+    ...(event?.start_at ? { [PROP.eventDate]: { date: { start: event.start_at } } } : {}),
+    ...(event?.location ? { [PROP.location]: richText(event.location) } : {}),
     ...answerProps,
   };
 

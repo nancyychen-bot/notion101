@@ -9,19 +9,21 @@ export interface EventRow {
   timezone: string | null;
   public_url: string | null;
   survey_url: string | null;
+  location: string | null;
 }
 
 export async function upsertEvent(e: {
   lumaEventId: string; name?: string | null; startAt?: string | null;
   endAt?: string | null; timezone?: string | null; publicUrl?: string | null;
+  location?: string | null;
 }): Promise<EventRow> {
   const rows = (await sql`
-    insert into events (luma_event_id, name, start_at, end_at, timezone, public_url)
+    insert into events (luma_event_id, name, start_at, end_at, timezone, public_url, location)
     values (${e.lumaEventId}, ${e.name ?? null}, ${e.startAt ?? null}, ${e.endAt ?? null},
-            ${e.timezone ?? null}, ${e.publicUrl ?? null})
+            ${e.timezone ?? null}, ${e.publicUrl ?? null}, ${e.location ?? null})
     on conflict (luma_event_id) do update set
       name = excluded.name, start_at = excluded.start_at, end_at = excluded.end_at,
-      timezone = excluded.timezone, public_url = excluded.public_url
+      timezone = excluded.timezone, public_url = excluded.public_url, location = excluded.location
     returning *
   `) as EventRow[];
   return rows[0];

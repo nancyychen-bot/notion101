@@ -9,6 +9,7 @@ create table if not exists events (
   timezone text,
   public_url text,
   survey_url text,
+  location text,
   created_at timestamptz not null default now()
 );
 

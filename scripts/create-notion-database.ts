@@ -47,6 +47,8 @@ async function main() {
     ] } },
     [PROP.checkedIn]: { date: {} },
     [PROP.event]: { rich_text: {} },
+    [PROP.eventDate]: { date: {} },
+    [PROP.location]: { rich_text: {} },
     [PROP.registeredAt]: { date: {} },
     [PROP.company]: { rich_text: {} },
     [PROP.jobTitle]: { rich_text: {} },
