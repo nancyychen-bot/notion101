@@ -1,15 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { reminderKindForEvent } from "../lib/events/reminders";
+import { reminderPlanForEvent } from "../lib/events/reminders";
 
-describe("reminderKindForEvent", () => {
-  const now = new Date("2026-08-24T15:00:00Z");
-  it("returns reminder_3d for an event 3 days out", () => {
-    expect(reminderKindForEvent("2026-08-27T18:00:00Z", now)).toBe("reminder_3d");
+const now = new Date("2026-12-15T12:00:00Z");
+
+describe("reminderPlanForEvent", () => {
+  it("returns upgrade_3d window 3 days out", () => {
+    // event starts 2026-12-18 → 3 days before 12-15
+    expect(reminderPlanForEvent("2026-12-18T19:00:00Z", now)).toBe("three_day");
   });
-  it("returns reminder_1d for an event 1 day out", () => {
-    expect(reminderKindForEvent("2026-08-25T18:00:00Z", now)).toBe("reminder_1d");
+  it("returns one_day window 1 day out", () => {
+    expect(reminderPlanForEvent("2026-12-16T19:00:00Z", now)).toBe("one_day");
   });
   it("returns null otherwise", () => {
-    expect(reminderKindForEvent("2026-08-26T18:00:00Z", now)).toBeNull();
+    expect(reminderPlanForEvent("2026-12-25T19:00:00Z", now)).toBeNull();
   });
 });
