@@ -15,11 +15,12 @@ export async function eventSummaries(): Promise<
 > {
   return (await sql`
     select e.id, e.luma_event_id, e.name, e.start_at,
-      count(*) filter (where g.luma_status='pending')  as pending,
-      count(*) filter (where g.luma_status='approved')  as approved,
-      count(*) filter (where g.luma_status='declined')  as declined,
-      count(*) filter (where g.luma_status='waitlist')  as waitlist,
-      count(*) filter (where g.checked_in_at is not null) as checked_in
+      -- ::int so the Neon HTTP driver returns numbers, not bigint strings
+      count(*) filter (where g.luma_status='pending')::int   as pending,
+      count(*) filter (where g.luma_status='approved')::int  as approved,
+      count(*) filter (where g.luma_status='declined')::int  as declined,
+      count(*) filter (where g.luma_status='waitlist')::int  as waitlist,
+      count(*) filter (where g.checked_in_at is not null)::int as checked_in
     from events e left join guests g on g.event_id = e.id
     group by e.id order by e.start_at desc nulls last
   `) as never;

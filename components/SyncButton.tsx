@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function SyncButton({ lumaEventId }: { lumaEventId: string }) {
+  const router = useRouter();
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [msg, setMsg] = useState<string>("");
 
@@ -22,6 +24,7 @@ export function SyncButton({ lumaEventId }: { lumaEventId: string }) {
       } else {
         setState("done");
         setMsg(`Synced ${data.guestsImported ?? 0} guests`);
+        router.refresh();
       }
     } catch (err) {
       setState("error");
