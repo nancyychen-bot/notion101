@@ -1,61 +1,69 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Verify an inbound Luma webhook signature (see docs/research/luma-api.md).
+ * Verify an inbound Luma webhook signature using the "Standard Webhooks" (Svix)
+ * scheme — the convention implied by the `whsec_...` secret.
  *
- * Header `Webhook-Signature: t=<unix>,v1=<hex>`. Signed payload is
- * `{t}.{rawBody}` (the RAW request body, before JSON.parse). HMAC-SHA256 keyed
- * with the `whsec_...` secret, hex digest, constant-time compared to v1.
+ * Headers (case-insensitive):
+ *   webhook-id / svix-id
+ *   webhook-timestamp / svix-timestamp   (unix seconds)
+ *   webhook-signature / svix-signature   ("v1,<base64> v1,<base64> ...")
  *
- * NOTE: this is Luma's scheme, NOT the Svix `{id}.{t}.{body}` triple.
+ * Signed content is `${id}.${timestamp}.${rawBody}`. HMAC-SHA256 keyed with the
+ * base64-decoded bytes of the secret AFTER the `whsec_` prefix, base64 digest,
+ * constant-time compared against each `v1,` signature in the header.
  */
 export function verifyLumaSignature(params: {
   rawBody: string;
   signatureHeader: string | null | undefined;
+  webhookId?: string | null;
+  timestamp?: string | null;
   secret: string;
   /** Reject signatures older than this many seconds (default 5 min); 0 disables. */
   toleranceSec?: number;
   /** Injectable clock for tests (unix seconds). */
   nowSec?: number;
 }): boolean {
-  const { rawBody, signatureHeader, secret } = params;
-  if (!signatureHeader) return false;
-
-  const parsed = parseSignatureHeader(signatureHeader);
-  if (!parsed) return false;
-  const { t, v1 } = parsed;
+  const { rawBody, signatureHeader, webhookId, timestamp, secret } = params;
+  if (!signatureHeader || !webhookId || !timestamp) return false;
 
   const tolerance = params.toleranceSec ?? 300;
   if (tolerance > 0) {
     const now = params.nowSec ?? Math.floor(Date.now() / 1000);
-    const ts = Number(t);
+    const ts = Number(timestamp);
     if (!Number.isFinite(ts) || Math.abs(now - ts) > tolerance) return false;
   }
 
-  const expected = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
-  return safeEqualHex(expected, v1);
-}
-
-function parseSignatureHeader(header: string): { t: string; v1: string } | null {
-  const parts = header.split(",").map((p) => p.trim());
-  let t: string | undefined;
-  let v1: string | undefined;
-  for (const part of parts) {
-    const eq = part.indexOf("=");
-    if (eq === -1) continue;
-    const key = part.slice(0, eq);
-    const val = part.slice(eq + 1);
-    if (key === "t") t = val;
-    else if (key === "v1") v1 = val;
-  }
-  if (!t || !v1) return null;
-  return { t, v1 };
-}
-
-function safeEqualHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+  // Key = base64-decoded bytes of the secret after the whsec_ prefix.
+  const rawKey = secret.startsWith("whsec_") ? secret.slice("whsec_".length) : secret;
+  let key: Buffer;
   try {
-    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+    key = Buffer.from(rawKey, "base64");
+    if (key.length === 0) return false;
+  } catch {
+    return false;
+  }
+
+  const expected = createHmac("sha256", key)
+    .update(`${webhookId}.${timestamp}.${rawBody}`)
+    .digest("base64");
+
+  // Header is a space-separated list of `v1,<sig>` entries.
+  for (const part of signatureHeader.split(" ")) {
+    const comma = part.indexOf(",");
+    if (comma === -1) continue;
+    const sig = part.slice(comma + 1);
+    if (sig && safeEqualB64(expected, sig)) return true;
+  }
+  return false;
+}
+
+function safeEqualB64(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a, "base64");
+    const bb = Buffer.from(b, "base64");
+    if (ba.length !== bb.length || ba.length === 0) return false;
+    return timingSafeEqual(ba, bb);
   } catch {
     return false;
   }
