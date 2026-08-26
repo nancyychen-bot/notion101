@@ -2,45 +2,36 @@ import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { verifyLumaSignature } from "../lib/luma/verify";
 
-// Standard Webhooks / Svix: key is base64-decoded bytes after `whsec_`.
-const SECRET = "whsec_" + Buffer.from("a-32-byte-test-signing-key-value").toString("base64");
+// Confirmed live: HMAC-SHA256 over `${t}.${body}`, keyed with the FULL whsec_ string, hex.
+const SECRET = "whsec_test_secret";
 
-function sign(id: string, ts: number, rawBody: string, secret = SECRET): string {
-  const key = Buffer.from(secret.slice("whsec_".length), "base64");
-  return "v1," + createHmac("sha256", key).update(`${id}.${ts}.${rawBody}`).digest("base64");
+function sign(rawBody: string, t: number, secret = SECRET): string {
+  const v1 = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
+  return `t=${t},v1=${v1}`;
 }
 
-describe("verifyLumaSignature (Standard Webhooks / Svix)", () => {
+describe("verifyLumaSignature", () => {
   const rawBody = JSON.stringify({ type: "guest.registered", data: {} });
-  const id = "msg_123";
   const now = 1_800_000_000;
-  const base = { rawBody, webhookId: id, timestamp: String(now), secret: SECRET, nowSec: now };
 
   it("accepts a valid signature", () => {
-    expect(verifyLumaSignature({ ...base, signatureHeader: sign(id, now, rawBody) })).toBe(true);
-  });
-
-  it("accepts when the header carries multiple space-separated signatures", () => {
-    const header = `v1,aW52YWxpZA== ${sign(id, now, rawBody)}`;
-    expect(verifyLumaSignature({ ...base, signatureHeader: header })).toBe(true);
+    expect(verifyLumaSignature({ rawBody, signatureHeader: sign(rawBody, now), secret: SECRET, nowSec: now })).toBe(true);
   });
 
   it("rejects a tampered body", () => {
-    expect(verifyLumaSignature({ ...base, rawBody: rawBody + "x", signatureHeader: sign(id, now, rawBody) })).toBe(false);
+    expect(verifyLumaSignature({ rawBody: rawBody + "x", signatureHeader: sign(rawBody, now), secret: SECRET, nowSec: now })).toBe(false);
   });
 
   it("rejects a wrong secret", () => {
-    const other = "whsec_" + Buffer.from("some-other-signing-key-bytes!!!!").toString("base64");
-    expect(verifyLumaSignature({ ...base, signatureHeader: sign(id, now, rawBody, other) })).toBe(false);
+    expect(verifyLumaSignature({ rawBody, signatureHeader: sign(rawBody, now, "whsec_other"), secret: SECRET, nowSec: now })).toBe(false);
   });
 
   it("rejects a stale timestamp beyond tolerance", () => {
-    expect(verifyLumaSignature({ ...base, signatureHeader: sign(id, now, rawBody), timestamp: String(now - 10_000), toleranceSec: 300 })).toBe(false);
+    expect(verifyLumaSignature({ rawBody, signatureHeader: sign(rawBody, now - 10_000), secret: SECRET, nowSec: now, toleranceSec: 300 })).toBe(false);
   });
 
-  it("rejects missing headers", () => {
-    expect(verifyLumaSignature({ ...base, signatureHeader: null })).toBe(false);
-    expect(verifyLumaSignature({ ...base, signatureHeader: sign(id, now, rawBody), webhookId: null })).toBe(false);
-    expect(verifyLumaSignature({ ...base, signatureHeader: sign(id, now, rawBody), timestamp: null })).toBe(false);
+  it("rejects missing/garbage headers", () => {
+    expect(verifyLumaSignature({ rawBody, signatureHeader: null, secret: SECRET, nowSec: now })).toBe(false);
+    expect(verifyLumaSignature({ rawBody, signatureHeader: "nonsense", secret: SECRET, nowSec: now })).toBe(false);
   });
 });
