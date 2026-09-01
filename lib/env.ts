@@ -18,6 +18,7 @@ export const env = {
     guestsDataSourceId: () => required("NOTION_GUESTS_DATA_SOURCE_ID"),
     guestsDbId: () => optional("NOTION_GUESTS_DB_ID"),
     webhookSecret: () => optional("NOTION_WEBHOOK_SECRET"),
+    feedbackDbId: () => optional("NOTION_FEEDBACK_DB_ID"),
   },
   comms: {
     apiKey: () => required("RESEND_API_KEY"),
