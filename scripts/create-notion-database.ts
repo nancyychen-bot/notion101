@@ -31,6 +31,7 @@ async function main() {
   const opt = (q: unknown) => (q ? extractQuestionOptions([q as never]).map((name) => ({ name })) : []);
 
   const qCompany = byLabel(/company do you own/i);
+  const qWebsite = byLabel(/company's website/i);
   const qSize = byLabel(/size of your company/i);
   const qTrack = byLabel(/track best fits/i);
   const qNotionEmail = byLabel(/email do you use for notion/i);
@@ -48,10 +49,11 @@ async function main() {
     [PROP.checkedIn]: { date: {} },
     [PROP.event]: { rich_text: {} },
     [PROP.eventDate]: { date: {} },
-    [PROP.location]: { rich_text: {} },
+    [PROP.location]: { select: { options: [] } },
     [PROP.registeredAt]: { date: {} },
     [PROP.company]: { rich_text: {} },
     [PROP.jobTitle]: { rich_text: {} },
+    [PROP.companyWebsite]: { rich_text: {} },
     [PROP.companySize]: { select: { options: opt(qSize) } },
     [PROP.businessTrack]: { select: { options: opt(qTrack) } },
     [PROP.notionAccountEmail]: { email: {} },
@@ -74,6 +76,7 @@ async function main() {
     if (q?.id) map[q.id] = { prop, kind };
   };
   put(qCompany, PROP.company, "rich_text");
+  put(qWebsite, PROP.companyWebsite, "rich_text");
   put(qSize, PROP.companySize, "select");
   put(qTrack, PROP.businessTrack, "select");
   put(qNotionEmail, PROP.notionAccountEmail, "email");

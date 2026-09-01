@@ -34,7 +34,7 @@ export async function pushGuestToNotion(
     ...(g.email ? { [PROP.email]: { email: g.email } } : {}),
     ...(g.checked_in_at ? { [PROP.checkedIn]: { date: { start: g.checked_in_at } } } : {}),
     ...(event?.start_at ? { [PROP.eventDate]: { date: { start: event.start_at } } } : {}),
-    ...(event?.location ? { [PROP.location]: richText(event.location) } : {}),
+    ...(event?.location ? { [PROP.location]: { select: { name: event.location } } } : {}),
     ...answerProps,
   };
 

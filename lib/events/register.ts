@@ -51,7 +51,7 @@ export async function registerEventFromLuma(input: string): Promise<RegisterResu
     endAt: detail.end_at ?? null,
     timezone: detail.timezone ?? null,
     publicUrl: detail.url ?? null,
-    location: detail.geo_address_json?.full_address ?? detail.geo_address_json?.city_state ?? null,
+    location: detail.geo_address_json?.city ?? detail.geo_address_json?.city_state ?? null,
   });
 
   const guests = await listEventGuests(lumaEventId);

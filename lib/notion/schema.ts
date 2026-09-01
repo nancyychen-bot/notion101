@@ -10,6 +10,7 @@ export const PROP = {
   registeredAt: "Registered At",
   company: "Company",
   jobTitle: "Job Title",
+  companyWebsite: "Company Website",
   companySize: "Company Size",
   businessTrack: "Business Track",
   notionAccountEmail: "Notion Account Email",

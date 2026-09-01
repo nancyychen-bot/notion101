@@ -1,6 +1,8 @@
 {
   "nhidmktb": { "prop": "Company", "kind": "rich_text" },
   "nhidmktb::job_title": { "prop": "Job Title", "kind": "rich_text" },
+  "7upieor4": { "prop": "Company Website", "kind": "rich_text" },
+  "n44pmfkq": { "prop": "Company Website", "kind": "rich_text" },
   "by766naw": { "prop": "Company Size", "kind": "select" },
   "s1ai9ywz": { "prop": "Business Track", "kind": "select" },
   "1uc5woee": { "prop": "Notion Account Email", "kind": "email" },
