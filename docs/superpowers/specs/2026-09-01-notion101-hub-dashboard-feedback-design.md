@@ -100,11 +100,24 @@ reads on page load** (same rationale as OfficeHours migration 0021).
   (ported/trimmed from OfficeHours).
 - `lib/events/feedback-import.ts` — queries the feedback DS filtered to `Event="Notion 101"`
   (paginated), maps each page, resolves the event, upserts into `feedback` by `notion_page_id`.
-- **Matching (local, no extra Notion reads):** lowercase the respondent email, match it against
-  notion-101's own Neon `guests.email`. Among matched guests, pick the event whose `start_at`
-  date falls within the **7 days up to and including** the submission date, most recent wins
-  (`selectEventForFeedback`, a pure + unit-tested function ported from OfficeHours). No match →
-  store with `event_id = null` and count it as *unattributed* (surfaced, never dropped).
+- **Matching (local, no extra Notion reads) — robust to feedback that arrives days/weeks later.**
+  Feedback carries only a name + a "What email do you use for Notion?" value, and that email may
+  differ from the RSVP email. Since each guest row is tied to exactly one event, email→guest→event
+  is authoritative and normally unique for a series (a person attends one city), so a late response
+  still maps to the correct stop — **no time window is required**. Steps:
+  1. **Email match (primary):** lowercase the respondent email; match against `guests.email` **or
+     any value in that guest's `answers` jsonb** (which includes their Notion account email) —
+     qid-independent, so it survives the per-event question-id differences.
+  2. **Name match (fallback):** if email matched nothing, match `guests.name` (case-insensitive)
+     against the RSVP list.
+  3. **Disambiguation:** if the matched respondent has a single event, use it (regardless of how
+     many days later the feedback arrived). If they attended multiple stops (repeat attendee),
+     pick the most recent event dated **on/before** the submission date
+     (`selectEventForFeedback`, pure + unit-tested).
+  - No match → store with `event_id = null` and count it as *unattributed* (surfaced, never dropped).
+  - Known limitation: name-fallback could collide for two different people with the same name in
+    different cities; email is tried first and is authoritative, so this only affects the minority
+    of email-unmatched rows, and the most-recent-on/before tiebreak keeps it best-effort.
 - **Trigger:** `app/api/cron/feedback-import/route.ts` (hourly Vercel cron, `CRON_SECRET`-auth)
   and the dashboard **Refresh** button. Also invoked from the existing reconcile for a single
   "sync everything" path.
