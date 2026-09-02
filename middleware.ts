@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isValidSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 /**
- * Guard the dashboard (`/`) only. `/add-event` is intentionally NOT session-gated:
+ * Guard the dashboard (`/`), `/feedback`, and `/settings/*` (all show attendee/
+ * respondent PII). `/add-event` is intentionally NOT session-gated:
  * per design §6.1 it is embedded in a Notion iframe and protected by a short-lived
  * form token instead (a sameSite=lax session cookie wouldn't be sent in the iframe).
  * All API routes, `/login`, and static assets are excluded from the matcher so
@@ -29,5 +30,5 @@ export async function middleware(req: NextRequest) {
 // fully public. /add-event is form-token protected (design §6.1); webhook/cron/health
 // routes are never matched, so external callers are never challenged for a session.
 export const config = {
-  matcher: ["/", "/settings/:path*"],
+  matcher: ["/", "/feedback", "/settings/:path*"],
 };
