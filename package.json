@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "setup:notion": "tsx --env-file=.env.local scripts/create-notion-database.ts",
+    "setup:volunteer-feedback": "tsx --env-file=.env.local scripts/configure-volunteer-feedback-db.ts",
     "register:event": "tsx --env-file=.env.local scripts/register-event.ts"
   },
   "dependencies": {
