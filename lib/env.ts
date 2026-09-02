@@ -19,6 +19,9 @@ export const env = {
     guestsDbId: () => optional("NOTION_GUESTS_DB_ID"),
     webhookSecret: () => optional("NOTION_WEBHOOK_SECRET"),
     feedbackDbId: () => optional("NOTION_FEEDBACK_DB_ID"),
+    ambassadorToken: () => required("NOTION_AMBASSADOR_TOKEN"),
+    volunteerProdDbId: () => optional("NOTION_VOLUNTEER_PROD_DB_ID"),
+    volunteerDevDbId: () => optional("NOTION_VOLUNTEER_DEV_DB_ID"),
   },
   comms: {
     apiKey: () => required("RESEND_API_KEY"),

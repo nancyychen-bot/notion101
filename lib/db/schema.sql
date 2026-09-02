@@ -79,3 +79,23 @@ create table if not exists feedback (
   updated_at       timestamptz not null default now()
 );
 create index if not exists feedback_event_idx on feedback(event_id);
+
+create table if not exists volunteer_feedback (
+  ambassador_page_id text primary key,
+  dev_page_id        text,
+  event_id           uuid references events(id) on delete set null,
+  volunteer_name     text,
+  volunteer_type     text,
+  city               text,
+  tracks             text[],
+  preparedness_label text,
+  preparedness_score int,
+  experience_label   text,
+  experience_score   int,
+  what_worked        text,
+  challenges         text,
+  improvements       text,
+  submitted_at       timestamptz,
+  updated_at         timestamptz not null default now()
+);
+create index if not exists volunteer_feedback_event_idx on volunteer_feedback(event_id);
