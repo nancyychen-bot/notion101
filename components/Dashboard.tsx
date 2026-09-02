@@ -23,12 +23,38 @@ function Stat({ value, label }: { value: ReactNode; label: string }) {
   );
 }
 
+export interface EmailRow {
+  kind: string;
+  recipient_email: string;
+  status: string;
+  created_at: string;
+  name: string | null;
+}
+export interface SyncRow {
+  direction: string;
+  action: string;
+  result: string;
+  note: string | null;
+  created_at: string;
+}
+
+function fmt(value: string | null | undefined): string {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
 export interface DashboardData {
   tabs: TabItem[];
   activeKey: string;
   result: EventResult;
   community: Community;
   syncEventId: string | null;
+  emails: EmailRow[];
+  syncs: SyncRow[];
 }
 
 export function Dashboard({ data }: { data: DashboardData }) {
@@ -106,6 +132,72 @@ export function Dashboard({ data }: { data: DashboardData }) {
             <Stat value={pct(data.community.repeatRate)} label="Repeat rate" />
           </div>
         </Card>
+      </section>
+
+      {/* ── Recent emails ── */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-lg font-semibold">Recent Emails</h2>
+        {data.emails.length === 0 ? (
+          <p className="text-sm text-neutral-500">No emails sent yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b bg-neutral-50 text-left">
+                  <th className="px-3 py-2 font-medium">Kind</th>
+                  <th className="px-3 py-2 font-medium">Recipient</th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Sent at</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.emails.map((e, i) => (
+                  <tr key={i} className="border-b hover:bg-neutral-50">
+                    <td className="px-3 py-2">{e.kind}</td>
+                    <td className="px-3 py-2">{e.recipient_email}</td>
+                    <td className="px-3 py-2">{e.name ?? "—"}</td>
+                    <td className="px-3 py-2">{e.status}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{fmt(e.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ── Recent sync log ── */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-lg font-semibold">Recent Sync Log</h2>
+        {data.syncs.length === 0 ? (
+          <p className="text-sm text-neutral-500">No sync events recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b bg-neutral-50 text-left">
+                  <th className="px-3 py-2 font-medium">Direction</th>
+                  <th className="px-3 py-2 font-medium">Action</th>
+                  <th className="px-3 py-2 font-medium">Result</th>
+                  <th className="px-3 py-2 font-medium">Note</th>
+                  <th className="px-3 py-2 font-medium">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.syncs.map((s, i) => (
+                  <tr key={i} className="border-b hover:bg-neutral-50">
+                    <td className="px-3 py-2">{s.direction}</td>
+                    <td className="px-3 py-2">{s.action}</td>
+                    <td className="px-3 py-2">{s.result}</td>
+                    <td className="px-3 py-2 max-w-xs truncate" title={s.note ?? undefined}>{s.note ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{fmt(s.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

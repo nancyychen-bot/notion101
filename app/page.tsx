@@ -1,4 +1,6 @@
-import { eventSummaries, feedbackForResults, checkedInAttendees } from "@/lib/db/dashboard";
+import {
+  eventSummaries, feedbackForResults, checkedInAttendees, recentEmailLog, recentSyncLog,
+} from "@/lib/db/dashboard";
 import { computeResults, computeCommunity } from "@/lib/hub/results";
 import { eventLabel } from "@/lib/hub/format";
 import { Dashboard, type DashboardData } from "@/components/Dashboard";
@@ -7,8 +9,8 @@ import type { TabItem } from "@/components/EventTabs";
 export const dynamic = "force-dynamic";
 
 export default async function Home({ searchParams }: { searchParams: { event?: string } }) {
-  const [events, feedback, attendees] = await Promise.all([
-    eventSummaries(), feedbackForResults(), checkedInAttendees(),
+  const [events, feedback, attendees, emails, syncs] = await Promise.all([
+    eventSummaries(), feedbackForResults(), checkedInAttendees(), recentEmailLog(), recentSyncLog(),
   ]);
   const { overall, perEvent } = computeResults(events, feedback);
   const community = computeCommunity(attendees);
@@ -29,6 +31,8 @@ export default async function Home({ searchParams }: { searchParams: { event?: s
     result,
     community,
     syncEventId: activeKey === "__all__" ? null : activeKey,
+    emails: emails as DashboardData["emails"],
+    syncs: syncs as DashboardData["syncs"],
   };
   return <Dashboard data={data} />;
 }
