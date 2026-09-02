@@ -62,3 +62,20 @@ create table if not exists email_overrides (
   live_body text,
   live_updated_at timestamptz
 );
+
+create table if not exists feedback (
+  notion_page_id   text primary key,
+  event_id         uuid references events(id) on delete set null,
+  guest_id         uuid references guests(id) on delete set null,
+  respondent_name  text,
+  respondent_email text,
+  satisfaction_score  int,
+  satisfaction_label  text,
+  confidence       text,
+  interests        text[],
+  feature_intent   text,
+  highlight        text,
+  submitted_at     timestamptz,
+  updated_at       timestamptz not null default now()
+);
+create index if not exists feedback_event_idx on feedback(event_id);
