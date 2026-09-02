@@ -53,10 +53,12 @@ function rollup(feedback: FeedbackRecord[]) {
   const conf = { muchMore: 0, somewhatMore: 0, same: 0, less: 0, unknown: 0 };
   for (const f of feedback) {
     const c = (f.confidence ?? "").toLowerCase();
-    if (c.startsWith("much more")) conf.muchMore++;
-    else if (c.startsWith("somewhat")) conf.somewhatMore++;
+    // Check the "more" cases before "less"/"same" so "somewhat less confident"
+    // is never miscounted as more. "less" covers "much less" + "somewhat less".
+    if (c.includes("much more")) conf.muchMore++;
+    else if (c.includes("somewhat more")) conf.somewhatMore++;
+    else if (c.includes("less")) conf.less++;
     else if (c.includes("same")) conf.same++;
-    else if (c.startsWith("less")) conf.less++;
     else conf.unknown++;
   }
   const answered = conf.muchMore + conf.somewhatMore + conf.same + conf.less;

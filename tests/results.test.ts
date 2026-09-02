@@ -31,6 +31,23 @@ describe("computeResults", () => {
     expect(overall.key).toBe("__all__");
     expect(overall.responses).toBe(2);
   });
+
+  it("buckets confidence labels correctly, incl. 'somewhat less' as less (not more)", () => {
+    const mk = (confidence: string): FeedbackRecord => ({
+      luma_event_id: "nyc", satisfaction_score: null, confidence, interests: [],
+      feature_intent: null, highlight: null, respondent_name: null, respondent_email: null, event_name: null,
+    });
+    const fb = [
+      mk("Much more confident"),
+      mk("Somewhat more confident"),
+      mk("About the same"),
+      mk("Somewhat less confident"),
+      mk("Much less confident"),
+    ];
+    const { overall } = computeResults(events, fb);
+    expect(overall.confidence).toEqual({ muchMore: 1, somewhatMore: 1, same: 1, less: 2, unknown: 0 });
+    expect(overall.pctMoreConfident).toBeCloseTo(2 / 5);
+  });
 });
 
 describe("computeCommunity", () => {

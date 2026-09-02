@@ -24,7 +24,7 @@ export async function upsertFeedback(f: UpsertFeedback): Promise<void> {
       feature_intent, highlight, submitted_at, updated_at)
     values (
       ${f.notionPageId}, ${f.eventId}, ${f.guestId}, ${f.respondentName}, ${f.respondentEmail},
-      ${f.satisfactionScore}, ${f.satisfactionLabel}, ${f.confidence}, ${f.interests as unknown as string},
+      ${f.satisfactionScore}, ${f.satisfactionLabel}, ${f.confidence}, ${f.interests},
       ${f.featureIntent}, ${f.highlight}, ${f.submittedAt}, now())
     on conflict (notion_page_id) do update set
       event_id = excluded.event_id, guest_id = excluded.guest_id,
