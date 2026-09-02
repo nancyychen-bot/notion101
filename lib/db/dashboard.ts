@@ -20,7 +20,9 @@ export async function eventSummaries(): Promise<
   return (await sql`
     select e.id, e.luma_event_id, e.name, e.start_at, e.location, e.timezone,
       -- ::int so the Neon HTTP driver returns numbers, not bigint strings
-      count(g.id)::int as registered,
+      -- registered = everyone who signed up (funnel top): all non-declined guests,
+      -- so Registered >= Approved >= Checked-in reconciles on the attendance card.
+      count(*) filter (where g.id is not null and g.luma_status <> 'declined')::int as registered,
       count(*) filter (where g.luma_status='pending')::int   as pending,
       count(*) filter (where g.luma_status='approved')::int  as approved,
       count(*) filter (where g.luma_status='declined')::int  as declined,

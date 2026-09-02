@@ -53,6 +53,7 @@ export interface DashboardData {
   result: EventResult;
   community: Community;
   syncEventId: string | null;
+  unattributed: number;
   emails: EmailRow[];
   syncs: SyncRow[];
 }
@@ -64,6 +65,13 @@ export function Dashboard({ data }: { data: DashboardData }) {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <AppNav />
       <EventTabs tabs={data.tabs} basePath="/" />
+
+      {data.unattributed > 0 && (
+        <p className="mb-4 text-xs text-amber-700">
+          {data.unattributed} feedback response{data.unattributed === 1 ? "" : "s"} not yet matched to an event —{" "}
+          <a href="/feedback" className="underline">see Feedback</a> (shown there under “All events”).
+        </p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card title="Attendance">

@@ -12,7 +12,7 @@ export default async function Home({ searchParams }: { searchParams: { event?: s
   const [events, feedback, attendees, emails, syncs] = await Promise.all([
     eventSummaries(), feedbackForResults(), checkedInAttendees(), recentEmailLog(), recentSyncLog(),
   ]);
-  const { overall, perEvent } = computeResults(events, feedback);
+  const { overall, perEvent, unattributed } = computeResults(events, feedback);
   const community = computeCommunity(attendees);
 
   const tabs: TabItem[] = [
@@ -31,6 +31,7 @@ export default async function Home({ searchParams }: { searchParams: { event?: s
     result,
     community,
     syncEventId: activeKey === "__all__" ? null : activeKey,
+    unattributed,
     emails: emails as DashboardData["emails"],
     syncs: syncs as DashboardData["syncs"],
   };
