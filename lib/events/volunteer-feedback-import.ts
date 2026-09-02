@@ -38,7 +38,7 @@ export async function importVolunteerFeedback(): Promise<VolunteerImportResult> 
         eventId = chosen.eventId;
         const ev = await getEventById(chosen.eventId);
         eventName = ev?.name ?? null;
-        eventDate = ev?.start_at ?? null;
+        eventDate = ev?.start_at ? ev.start_at.slice(0, 10) : null; // date-only for the dev "Event Date"
       }
     }
     if (eventId) matched++; else unattributed++;
