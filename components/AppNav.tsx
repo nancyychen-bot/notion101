@@ -3,6 +3,7 @@ import { RefreshButton } from "./RefreshButton";
 const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/feedback", label: "Feedback" },
+  { href: "/volunteers", label: "Volunteers" },
   { href: "/settings/emails", label: "Settings" },
 ];
 
