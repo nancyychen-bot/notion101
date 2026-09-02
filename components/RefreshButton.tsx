@@ -8,8 +8,11 @@ export function RefreshButton() {
   async function refresh() {
     setState("loading");
     try {
-      const res = await fetch("/api/feedback-import", { method: "POST" });
-      if (!res.ok) {
+      const [a, b] = await Promise.all([
+        fetch("/api/feedback-import", { method: "POST" }),
+        fetch("/api/volunteer-feedback-import", { method: "POST" }),
+      ]);
+      if (!a.ok || !b.ok) {
         setState("error");
         return;
       }
