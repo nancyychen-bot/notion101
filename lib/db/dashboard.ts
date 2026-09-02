@@ -9,6 +9,7 @@ export async function eventSummaries(): Promise<
     start_at: string | null;
     location: string | null;
     timezone: string | null;
+    registered: number;
     pending: number;
     approved: number;
     declined: number;
@@ -19,6 +20,7 @@ export async function eventSummaries(): Promise<
   return (await sql`
     select e.id, e.luma_event_id, e.name, e.start_at, e.location, e.timezone,
       -- ::int so the Neon HTTP driver returns numbers, not bigint strings
+      count(g.id)::int as registered,
       count(*) filter (where g.luma_status='pending')::int   as pending,
       count(*) filter (where g.luma_status='approved')::int  as approved,
       count(*) filter (where g.luma_status='declined')::int  as declined,
