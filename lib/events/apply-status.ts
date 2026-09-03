@@ -46,8 +46,9 @@ export async function applyStatus(
 // ── Default deps wiring ──────────────────────────────────────────────────────
 
 import { setLumaStatus } from "../db/guests";
-import { getEventById } from "../db/events";
+import { getEventById, getEventByLumaId } from "../db/events";
 import { updateGuestStatus } from "../luma/client";
+import { apiKeyForCalendar } from "../luma/calendars";
 import { sendGuestEmail } from "../email/comms";
 import { pushGuestToNotion } from "../notion/push";
 import { logSync } from "../db/sync-log";
@@ -55,8 +56,11 @@ import { logSync } from "../db/sync-log";
 export function defaultApplyDeps(direction: string, guestId: string): ApplyStatusDeps {
   return {
     setLumaStatus,
-    updateGuestOnLuma: (eventLumaId, guestLumaId, s) =>
-      updateGuestStatus({ eventLumaId, guestLumaId, status: s }),
+    updateGuestOnLuma: async (eventLumaId, guestLumaId, s) => {
+      const ev = await getEventByLumaId(eventLumaId);
+      const apiKey = await apiKeyForCalendar(ev?.luma_calendar);
+      await updateGuestStatus({ eventLumaId, guestLumaId, status: s, apiKey });
+    },
     sendEmail: (id, kind) => sendGuestEmail(id, kind),
     pushToNotion: async (g) => {
       const ev = await getEventById(g.event_id);
