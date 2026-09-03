@@ -22,6 +22,7 @@ function syncedFields(g: GuestRow) {
 export async function pushGuestToNotion(
   g: GuestRow,
   event: EventRow | null,
+  opts: { restore?: boolean } = {},
 ): Promise<void> {
   const notion = getNotionClient();
   const answerProps = answersToProperties((g.answers as Record<string, string>) ?? {}, QUESTION_MAP);
@@ -39,10 +40,14 @@ export async function pushGuestToNotion(
   };
 
   const hash = () => setSyncedHash(g.id, syncedFieldsHash(syncedFields(g)));
+  // On a real-time event (opts.restore), un-trash a page the user deleted so the
+  // guest reappears; periodic reconcile passes restore=false, leaving manual
+  // deletions alone.
+  const restore = opts.restore ? { archived: false } : {};
 
   // Fast path: a real page already exists → update it.
   if (g.notion_page_id && g.notion_page_id !== NOTION_PAGE_CREATING) {
-    await notion.pages.update({ page_id: g.notion_page_id, properties: props as never });
+    await notion.pages.update({ page_id: g.notion_page_id, ...restore, properties: props as never });
     await hash();
     return;
   }
@@ -74,7 +79,7 @@ export async function pushGuestToNotion(
   const fresh = await getGuestById(g.id);
   const pid = fresh?.notion_page_id;
   if (pid && pid !== NOTION_PAGE_CREATING) {
-    await notion.pages.update({ page_id: pid, properties: props as never });
+    await notion.pages.update({ page_id: pid, ...restore, properties: props as never });
     await hash();
   }
 }
