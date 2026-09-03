@@ -35,6 +35,24 @@ export function verifyLumaSignature(params: {
   return safeEqualHex(expected, v1);
 }
 
+/**
+ * Verify an inbound signature against a POOL of secrets (multi-calendar). Returns
+ * true if any secret validates it. The matching secret identifies the sending
+ * calendar, but callers route by the event id in the body, not by which matched.
+ */
+export function verifyAnyLumaSignature(params: {
+  rawBody: string;
+  signatureHeader: string | null | undefined;
+  secrets: string[];
+  toleranceSec?: number;
+  nowSec?: number;
+}): boolean {
+  const { rawBody, signatureHeader, secrets, toleranceSec, nowSec } = params;
+  return secrets.some((secret) =>
+    verifyLumaSignature({ rawBody, signatureHeader, secret, toleranceSec, nowSec }),
+  );
+}
+
 function parseSignatureHeader(header: string): { t: string; v1: string } | null {
   let t: string | undefined;
   let v1: string | undefined;

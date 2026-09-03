@@ -23,7 +23,7 @@ async function main() {
   if (!parent || !luma) { console.error("Required: --parent <page-id> --luma <evt-id-or-url>"); process.exit(1); }
 
   const notion = new Client({ auth: env.notion.token() });
-  const detail = await getLumaEvent(await resolveLumaEventId(luma));
+  const detail = await getLumaEvent(await resolveLumaEventId(luma), env.luma.apiKey());
   const questions = detail.registration_questions ?? [];
 
   // Heuristic label→property/kind wiring for the known Notion 101 form.

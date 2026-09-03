@@ -30,5 +30,5 @@ export async function middleware(req: NextRequest) {
 // fully public. /add-event is form-token protected (design §6.1); webhook/cron/health
 // routes are never matched, so external callers are never challenged for a session.
 export const config = {
-  matcher: ["/", "/feedback", "/volunteers", "/settings/:path*"],
+  matcher: ["/", "/feedback", "/volunteers", "/settings/:path*", "/add-calendar"],
 };

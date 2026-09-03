@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
-import { verifyLumaSignature } from "@/lib/luma/verify";
+import { verifyAnyLumaSignature } from "@/lib/luma/verify";
+import { lumaWebhookSecrets } from "@/lib/luma/calendars";
 import { parseGuestWebhook } from "@/lib/luma/parse";
 import { getEventByLumaId } from "@/lib/db/events";
 import { upsertGuest } from "@/lib/db/guests";
@@ -13,9 +13,11 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const raw = await req.text();
 
-  // Verify HMAC if a secret is configured.
-  const secret = env.luma.webhookSecret();
-  if (secret && !verifyLumaSignature({ rawBody: raw, signatureHeader: req.headers.get("webhook-signature"), secret })) {
+  // Verify against the pool of all configured webhook secrets (env + every
+  // connected calendar). Enforced whenever ANY calendar has a secret — so a new
+  // calendar's secret must be stored before its Luma webhook is enabled, else 401.
+  const secrets = await lumaWebhookSecrets();
+  if (secrets.length && !verifyAnyLumaSignature({ rawBody: raw, signatureHeader: req.headers.get("webhook-signature"), secrets })) {
     await logSync({ direction: "luma_in", result: "error", action: "verify", note: "bad signature" });
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

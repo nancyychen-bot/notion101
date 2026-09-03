@@ -99,3 +99,17 @@ create table if not exists volunteer_feedback (
   updated_at         timestamptz not null default now()
 );
 create index if not exists volunteer_feedback_event_idx on volunteer_feedback(event_id);
+
+create table if not exists luma_calendars (
+  id             text primary key,
+  api_key        text not null,
+  webhook_secret text,
+  calendar_id    text,
+  city           text,
+  calendar_url   text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists luma_calendars_calendar_id_idx on luma_calendars(calendar_id);
+
+alter table events add column if not exists luma_calendar text;

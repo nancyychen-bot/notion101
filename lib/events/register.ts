@@ -1,9 +1,18 @@
-import { resolveLumaEventId, getLumaEvent, listEventGuests } from "../luma/client";
+import { resolveLumaEventId, getLumaEvent, listEventGuests, cityFromGeo } from "../luma/client";
+import { lumaCalendars } from "../luma/calendars";
+import type { LumaEventDetail } from "../luma/types";
 import { normalizeAnswers } from "../luma/answers";
 import { upsertEvent, getEventByLumaId } from "../db/events";
 import { upsertGuest } from "../db/guests";
 import { pushGuestToNotion } from "../notion/push";
 import { logSync } from "../db/sync-log";
+
+export class CalendarNotConnectedError extends Error {
+  constructor(public eventId: string) {
+    super(`Luma event ${eventId} is not on any connected calendar.`);
+    this.name = "CalendarNotConnectedError";
+  }
+}
 
 export interface RegisterResult {
   eventName: string;
@@ -43,7 +52,25 @@ function deriveName(entry: {
  */
 export async function registerEventFromLuma(input: string): Promise<RegisterResult> {
   const lumaEventId = await resolveLumaEventId(input);
-  const detail = await getLumaEvent(lumaEventId);
+
+  // Auto-detect the owning calendar: the host-only event endpoint returns the
+  // event only for the calendar whose key owns it. Probe each configured
+  // calendar; the first that resolves identifies it and provides the key.
+  let detail: LumaEventDetail | null = null;
+  let calendarId = "default";
+  let apiKey = "";
+  for (const cal of await lumaCalendars()) {
+    try {
+      detail = await getLumaEvent(lumaEventId, cal.apiKey);
+      calendarId = cal.id;
+      apiKey = cal.apiKey;
+      break;
+    } catch {
+      // Not this calendar's event — try the next configured key.
+    }
+  }
+  if (!detail) throw new CalendarNotConnectedError(lumaEventId);
+
   const event = await upsertEvent({
     lumaEventId,
     name: detail.name ?? null,
@@ -51,10 +78,11 @@ export async function registerEventFromLuma(input: string): Promise<RegisterResu
     endAt: detail.end_at ?? null,
     timezone: detail.timezone ?? null,
     publicUrl: detail.url ?? null,
-    location: detail.geo_address_json?.city ?? detail.geo_address_json?.city_state ?? null,
+    location: cityFromGeo(detail.geo_address_json as Record<string, unknown> | null | undefined),
+    lumaCalendar: calendarId,
   });
 
-  const guests = await listEventGuests(lumaEventId);
+  const guests = await listEventGuests(lumaEventId, apiKey);
   let imported = 0;
   for (const entry of guests) {
     const answers = normalizeAnswers(entry.registration_answers);
