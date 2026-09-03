@@ -2,7 +2,7 @@ import { getNotionClient } from "./client";
 import { PROP, STATUS_TO_NOTION, QUESTION_MAP } from "./schema";
 import { answersToProperties } from "./mappers";
 import { syncedFieldsHash } from "../events/hash";
-import { setNotionPageId, setSyncedHash, type GuestRow } from "../db/guests";
+import { setNotionPageId, setSyncedHash, claimNotionPageCreate, getGuestById, NOTION_PAGE_CREATING, type GuestRow } from "../db/guests";
 import type { EventRow } from "../db/events";
 import { env } from "../env";
 
@@ -38,16 +38,43 @@ export async function pushGuestToNotion(
     ...answerProps,
   };
 
-  if (g.notion_page_id) {
+  const hash = () => setSyncedHash(g.id, syncedFieldsHash(syncedFields(g)));
+
+  // Fast path: a real page already exists → update it.
+  if (g.notion_page_id && g.notion_page_id !== NOTION_PAGE_CREATING) {
     await notion.pages.update({ page_id: g.notion_page_id, properties: props as never });
-  } else {
-    // The installed @notionhq/client defaults to the 2022-06-28 API (no data
-    // sources — a database IS its own data source), so we parent by database_id.
-    const created = await notion.pages.create({
-      parent: { database_id: env.notion.guestsDataSourceId() } as never,
-      properties: props as never,
-    });
-    await setNotionPageId(g.id, created.id);
+    await hash();
+    return;
   }
-  await setSyncedHash(g.id, syncedFieldsHash(syncedFields(g)));
+
+  // No known page yet. Atomically claim the create so concurrent webhooks for the
+  // same guest (Luma fires guest.registered + guest.updated + ticket.registered
+  // within the same second) don't each create a duplicate Notion row.
+  const won = g.notion_page_id == null ? await claimNotionPageCreate(g.id) : false;
+  if (won) {
+    try {
+      // The installed @notionhq/client defaults to the 2022-06-28 API (no data
+      // sources — a database IS its own data source), so we parent by database_id.
+      const created = await notion.pages.create({
+        parent: { database_id: env.notion.guestsDataSourceId() } as never,
+        properties: props as never,
+      });
+      await setNotionPageId(g.id, created.id);
+      await hash();
+    } catch (err) {
+      await setNotionPageId(g.id, null); // release the claim so a retry/reconcile can create
+      throw err;
+    }
+    return;
+  }
+
+  // Lost the claim — another invocation is creating (or already created). Re-read
+  // once: update the real page if it exists now; if still mid-create, skip (the
+  // winner's create + a later event or reconcile carry this guest's state).
+  const fresh = await getGuestById(g.id);
+  const pid = fresh?.notion_page_id;
+  if (pid && pid !== NOTION_PAGE_CREATING) {
+    await notion.pages.update({ page_id: pid, properties: props as never });
+    await hash();
+  }
 }

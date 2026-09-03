@@ -53,8 +53,27 @@ export async function setLumaStatus(id: string, status: GuestRow["luma_status"])
   return rows[0] ?? null;
 }
 
-export async function setNotionPageId(id: string, pageId: string): Promise<void> {
+export async function setNotionPageId(id: string, pageId: string | null): Promise<void> {
   await sql`update guests set notion_page_id = ${pageId}, updated_at = now() where id = ${id}`;
+}
+
+/** Sentinel stored in notion_page_id while a page is being created, so concurrent
+ * pushes for the same guest can tell "creation in progress" from "no page". */
+export const NOTION_PAGE_CREATING = "__creating__";
+
+/**
+ * Atomically claim the right to create this guest's Notion page. Only the caller
+ * that flips notion_page_id from NULL to the sentinel wins (Postgres row-level
+ * atomicity); concurrent webhooks for the same guest lose and update instead of
+ * creating a duplicate Notion row. Returns true iff this caller won.
+ */
+export async function claimNotionPageCreate(id: string): Promise<boolean> {
+  const rows = (await sql`
+    update guests set notion_page_id = ${NOTION_PAGE_CREATING}
+    where id = ${id} and notion_page_id is null
+    returning id
+  `) as { id: string }[];
+  return rows.length > 0;
 }
 
 export async function setSyncedHash(id: string, hash: string): Promise<void> {
