@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { lumaCalendars } from "./calendars";
 import type {
   LumaEventDetail,
   LumaRegistrationQuestion,
@@ -11,6 +11,108 @@ export type LumaStatus = "pending" | "approved" | "declined" | "waitlist";
 
 const BASE = "https://public-api.luma.com";
 
+/**
+ * The event's city from Luma's `geo_address_json`. Luma leaves the structured
+ * `city` null for many non-US addresses (e.g. Seoul: `city` null, `city_state` =
+ * "Seoul, South Korea"), so fall back to the first segment of `city_state`.
+ */
+export function cityFromGeo(geo: Record<string, unknown> | null | undefined): string | null {
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const city = str(geo?.["city"]);
+  if (city) return city;
+  const cityState = str(geo?.["city_state"]);
+  if (cityState) return cityState.split(",")[0].trim() || null;
+  return null;
+}
+
+/** Vanity slug of a Luma URL = its last non-empty path segment, lowercased. */
+function slugFromUrl(u: string): string | null {
+  try {
+    const url = new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`);
+    const seg = url.pathname.split("/").filter(Boolean).pop();
+    return seg ? seg.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface UpcomingCalEvent {
+  id: string; // evt-…
+  url: string | null;
+  calendarId: string | null;
+  city: string | null;
+}
+
+/** All upcoming events for a calendar key (2-day back-buffer), paginated. */
+export async function listUpcomingCalendarEvents(apiKey: string): Promise<UpcomingCalEvent[]> {
+  const after = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const out: UpcomingCalEvent[] = [];
+  let cursor: string | undefined;
+  do {
+    const url = new URL(`${BASE}/v1/calendars/events/list`);
+    url.searchParams.set("after", after);
+    url.searchParams.set("pagination_limit", "50");
+    if (cursor) url.searchParams.set("pagination_cursor", cursor);
+    const res = await fetch(url, { headers: { "x-luma-api-key": apiKey } });
+    if (res.status === 401 || res.status === 403) {
+      throw new LumaApiKeyInvalidError(`Luma rejected the API key: HTTP ${res.status}`);
+    }
+    if (!res.ok) throw new Error(`Luma calendars/events/list failed: HTTP ${res.status}`);
+    const body = (await res.json()) as {
+      entries?: Array<{ id: string; url?: string; calendar_id?: string; geo_address_json?: Record<string, unknown> }>;
+      has_more?: boolean; next_cursor?: string;
+    };
+    for (const e of body.entries ?? []) {
+      out.push({ id: e.id, url: e.url ?? null, calendarId: e.calendar_id ?? null, city: cityFromGeo(e.geo_address_json) });
+    }
+    cursor = body.has_more && body.next_cursor ? body.next_cursor : undefined;
+  } while (cursor);
+  return out;
+}
+
+async function findEventIdInCalendar(apiKey: string, slug: string): Promise<string | null> {
+  for (const e of await listUpcomingCalendarEvents(apiKey)) {
+    if (e.url && slugFromUrl(e.url) === slug) return e.id;
+  }
+  return null;
+}
+
+/** Resolve a vanity URL to an evt- id by matching its slug against each connected
+ * calendar's upcoming events (authenticated API — reliable from serverless, where
+ * scraping the Cloudflare-fronted public page is not). Null if none list it. */
+async function resolveEventIdViaCalendars(vanityUrl: string): Promise<string | null> {
+  const slug = slugFromUrl(vanityUrl);
+  if (!slug) return null;
+  for (const cal of await lumaCalendars()) {
+    try {
+      const id = await findEventIdInCalendar(cal.apiKey, slug);
+      if (id) return id;
+    } catch {
+      // A single key failing (revoked/rate-limited) shouldn't abort resolution.
+    }
+  }
+  return null;
+}
+
+/** Luma rejected the API key (401/403) — wrong/revoked. Distinct from transient
+ * 429/5xx so callers don't mislabel "Luma is down" as "bad key". */
+export class LumaApiKeyInvalidError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "LumaApiKeyInvalidError";
+  }
+}
+
+/** A URL that couldn't be resolved to an evt- id via any connected calendar (nor
+ * the page scrape). For add-event this signals "this event's calendar isn't
+ * connected" — the caller prompts to connect it. */
+export class LumaUrlUnresolvedError extends Error {
+  constructor(public url: string, detail: string) {
+    super(detail);
+    this.name = "LumaUrlUnresolvedError";
+  }
+}
+
 /** Extract an `evt-…` id from a raw id or a URL/string that contains one. */
 export function parseLumaEventId(input: string): string {
   const trimmed = input.trim();
@@ -20,10 +122,11 @@ export function parseLumaEventId(input: string): string {
 }
 
 /**
- * Resolve a Luma event id from user input. Accepts an `evt-…` id, any URL that
- * contains one (e.g. a manage link), OR a public vanity URL like
- * `https://luma.com/g95pjn8u` — the public API only takes `evt-` ids, so for a
- * vanity URL we fetch the page and pull the embedded `evt-` id out of the HTML.
+ * Resolve a Luma event id from user input: an `evt-…` id, any URL containing one,
+ * or a public vanity URL. For a vanity URL, prefer the authenticated
+ * calendars/events/list match (Cloudflare-proof, also identifies the owner); only
+ * if that finds nothing, fall back to scraping the page's embedded evt- id (often
+ * blocked from datacenter IPs).
  */
 export async function resolveLumaEventId(input: string): Promise<string> {
   const trimmed = input.trim();
@@ -31,9 +134,11 @@ export async function resolveLumaEventId(input: string): Promise<string> {
   if (direct) return direct[0];
 
   const looksLikeUrl = /^https?:\/\//i.test(trimmed) || /\b(lu\.ma|luma\.com)\//i.test(trimmed);
-  if (!looksLikeUrl) {
-    throw new Error(`Could not find an evt- id in: ${input}`);
-  }
+  if (!looksLikeUrl) throw new Error(`Could not find an evt- id in: ${input}`);
+
+  const viaApi = await resolveEventIdViaCalendars(trimmed);
+  if (viaApi) return viaApi;
+
   const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   let res: Response;
   try {
@@ -43,19 +148,19 @@ export async function resolveLumaEventId(input: string): Promise<string> {
       signal: AbortSignal.timeout(15000),
     });
   } catch (err) {
-    throw new Error(`Could not load Luma page ${url}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new LumaUrlUnresolvedError(url, `Could not load Luma page ${url}: ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (!res.ok) throw new Error(`Could not load Luma page ${url}: HTTP ${res.status}`);
+  if (!res.ok) throw new LumaUrlUnresolvedError(url, `Could not load Luma page ${url}: HTTP ${res.status}`);
   const found = (await res.text()).match(/evt-[A-Za-z0-9]+/);
   if (found) return found[0];
-  throw new Error(`No evt- id found on Luma page ${url}`);
+  throw new LumaUrlUnresolvedError(url, `No evt- id found on Luma page ${url}`);
 }
 
 /**
  * List every guest for an event (host-only), following cursor pagination. Used
  * by the backfill to import guests who registered before the event was tracked.
  */
-export async function listEventGuests(eventId: string): Promise<LumaGuestListEntry[]> {
+export async function listEventGuests(eventId: string, apiKey: string): Promise<LumaGuestListEntry[]> {
   const out: LumaGuestListEntry[] = [];
   let cursor: string | undefined;
   do {
@@ -63,7 +168,7 @@ export async function listEventGuests(eventId: string): Promise<LumaGuestListEnt
     url.searchParams.set("event_id", eventId);
     url.searchParams.set("pagination_limit", "50");
     if (cursor) url.searchParams.set("pagination_cursor", cursor);
-    const res = await fetch(url, { headers: { "x-luma-api-key": env.luma.apiKey() } });
+    const res = await fetch(url, { headers: { "x-luma-api-key": apiKey } });
     if (!res.ok) throw new Error(`Luma guests/list ${eventId} failed: HTTP ${res.status}`);
     const body = (await res.json()) as LumaGuestListResponse;
     out.push(...(body.entries ?? []));
@@ -82,8 +187,8 @@ export interface LumaEventStats {
 }
 
 /** Authoritative per-event counts straight from Luma's guest list. */
-export async function fetchEventStats(eventId: string): Promise<LumaEventStats> {
-  const guests = await listEventGuests(eventId);
+export async function fetchEventStats(eventId: string, apiKey: string): Promise<LumaEventStats> {
+  const guests = await listEventGuests(eventId, apiKey);
   const stats: LumaEventStats = { registered: 0, approved: 0, checkedIn: 0, waitlist: 0, pending: 0, capacity: null };
   for (const g of guests) {
     const st = g.approval_status;
@@ -123,9 +228,9 @@ export function extractQuestionOptions(questions: LumaRegistrationQuestion[]): s
 }
 
 /** Fetch full event detail (host-only) incl. registration_questions. */
-export async function getLumaEvent(eventId: string): Promise<LumaEventDetail> {
+export async function getLumaEvent(eventId: string, apiKey: string): Promise<LumaEventDetail> {
   const res = await fetch(`${BASE}/v1/event/get?api_id=${encodeURIComponent(eventId)}`, {
-    headers: { "x-luma-api-key": env.luma.apiKey() },
+    headers: { "x-luma-api-key": apiKey },
   });
   if (!res.ok) {
     throw new Error(`Luma getEvent ${eventId} failed: HTTP ${res.status}`);
@@ -156,11 +261,12 @@ export async function updateGuestStatus(params: {
   eventLumaId: string; // evt-…
   guestLumaId: string; // gst-…
   status: LumaStatus;
+  apiKey: string;
 }): Promise<void> {
   const res = await fetch(`${BASE}/v1/events/guests/update-status`, {
     method: "POST",
     headers: {
-      "x-luma-api-key": env.luma.apiKey(),
+      "x-luma-api-key": params.apiKey,
       "content-type": "application/json",
     },
     body: JSON.stringify({
