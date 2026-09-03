@@ -33,8 +33,11 @@ deliberate simplification, not an omission.
 
 ## Decisions (confirmed)
 
-- **Entry points:** both a standalone `/add-calendar` page (bulk pre-register
-  regions) and a just-in-time reveal inside `/add-event`.
+- **Entry points:** a standalone, **admin-gated** `/add-calendar` page is the
+  single path to connect a calendar (bulk pre-register regions + set up its
+  webhook). The public `/add-event` page does **not** expose key fields; when it
+  hits an unconnected calendar it shows an "ask an admin to add this calendar via
+  /add-calendar" message. (No public just-in-time key reveal.)
 - **Schema apply:** append to `lib/db/schema.sql` as idempotent statements,
   matching the existing pattern; applied against Neon the same way `schema.sql`
   is applied today. No migration runner introduced.
@@ -45,9 +48,12 @@ deliberate simplification, not an omission.
   `'default'`.
 - **Registry columns:** full parity — `id, api_key, webhook_secret,
   calendar_id, city, calendar_url`.
-- **`/add-calendar` gating:** same form-token + public posture as `/add-event`
-  (self-service onboarding by organizers who have no dashboard session; the form
-  is write-only and the form-token blocks drive-by bots).
+- **`/add-calendar` gating:** session-gated behind the existing dashboard login
+  (`DASHBOARD_PASSWORD` + `SESSION_SECRET`), added to the middleware allowlist
+  matcher. No form-token needed. The dashboard password (`NoseyKnowsBest`) is set
+  as the `DASHBOARD_PASSWORD` env var in Vercel (and `.env.local` for local) —
+  never committed to the repo. (`.env.local` does not deploy; prod config is
+  Vercel env vars.)
 
 ## Section 1 — Data layer
 
@@ -172,14 +178,19 @@ in Luma, or it will 401. This is why webhook secret is required at onboarding.
 
 Outbound status pushes use `apiKeyForCalendar(event.luma_calendar)`.
 
+**Live check-in is the point of this.** Luma's public API has no
+webhook-create endpoint, so the webhook is configured manually in Luma's
+dashboard. Once a calendar's webhook points at `/api/webhooks/luma` and its
+secret is stored, `guest.updated` events (which carry `checked_in_at` on the
+ticket) flow live for every event on that calendar — the existing handler
+already parses check-in. The `/add-calendar` form must therefore surface (a) the
+exact webhook URL to paste into Luma and (b) which events to subscribe to
+(guest registered/updated), so check-ins show up in the hub in real time.
+
 ## Section 5 — Onboarding, routes, pages
 
 ### `lib/events/onboard.ts` (new)
 
-- `resolveNewCalendarEvent({ lumaEvent, apiKey })` — validate a pasted key
-  **against that exact event**: list the key's upcoming events, match by id or
-  vanity slug. Returns `{ eventId, calendarId, city }`. Proves the key is
-  correct and yields the calendar id + city.
 - `connectCalendar({ slug, apiKey, webhookSecret, calendarUrl, city? })` —
   validate-before-store (the list call doubles as validation; an empty list from
   a valid key is still OK), derive `cal-…` id from `calendarUrl` or first event,
@@ -192,24 +203,31 @@ Outbound status pushes use `apiKeyForCalendar(event.luma_calendar)`.
 `registerEventFromLuma` gains: resolve the owning calendar, write
 `events.luma_calendar` **once**, never re-resolve afterward.
 
-### API routes (top-level convention, form-token protected)
+### API routes
 
-- `app/api/add-event/route.ts` — extend: if resolution finds no connected
-  calendar and no key was supplied → `{ ok:false, needsCalendar:true }`; if a
-  key is supplied, `resolveNewCalendarEvent` → upsert calendar → register.
-- `app/api/add-calendar/route.ts` — new: `connectCalendar`, fail-loud on a key
-  Luma rejects.
+- `app/api/add-event/route.ts` (existing, form-token protected) — extend: if the
+  event resolves to no connected calendar → `{ ok:false, needsCalendar:true }`
+  with a message directing the organizer to ask an admin. **No key fields** are
+  accepted here; calendar connection never happens on this public endpoint.
+- `app/api/add-calendar/route.ts` (new, **session-gated** — verifies the
+  dashboard session cookie, no form-token) — `connectCalendar`, fail-loud on a
+  key Luma rejects.
 
-### Pages (form-token, public, iframe-embeddable — like `/add-event`)
+### Pages
 
-- `app/add-event/page.tsx` + form component — add the conditional
-  key/secret/url/slug reveal when the API returns `needsCalendar:true` (amber
-  callout, resubmit).
-- `app/add-calendar/page.tsx` + new form component — fields: slug, apiKey,
-  webhookSecret, calendarUrl, city (optional). Success shows the resolved
-  calendar id + city.
-- `middleware.ts` — add `/add-calendar` to the public exclusion list alongside
-  `/add-event`.
+- `app/add-event/page.tsx` + form component (public, form-token,
+  iframe-embeddable — unchanged posture) — on `needsCalendar:true`, show an
+  informational callout ("this calendar isn't connected yet — an admin needs to
+  add it via /add-calendar"). No key/secret inputs.
+- `app/add-calendar/page.tsx` + new form component (**session-gated**, like
+  `/volunteers`) — fields: slug, apiKey, webhookSecret, calendarUrl, city
+  (optional). Helper text surfaces the exact `/api/webhooks/luma` URL to paste
+  into Luma and which guest events to subscribe to (for live check-in). Success
+  shows the resolved calendar id + city.
+- `middleware.ts` — add `/add-calendar` to the allowlist matcher
+  (`["/", "/feedback", "/volunteers", "/settings/:path*", "/add-calendar"]`) so
+  it sits behind the dashboard login. `/add-event` stays out of the matcher
+  (remains public).
 
 ## Section 6 — Testing
 
@@ -236,6 +254,12 @@ Unit tests (Vitest, matching existing `tests/`):
   requirement.
 - **No Slack routing** (office-hours has it; Notion 101 does not).
 - **Add-only.** No UI for editing/removing calendars in this pass.
+- **No automated webhook creation.** Luma's public API has no webhook-create
+  endpoint; the admin sets the webhook up in Luma's dashboard using the URL +
+  instructions the `/add-calendar` form provides. Revisit if Luma ships an API.
+- **No public just-in-time calendar connect.** Calendar connection is
+  admin-only via `/add-calendar`; `/add-event` only surfaces an "ask an admin"
+  message for unconnected calendars.
 
 ## Reference
 
