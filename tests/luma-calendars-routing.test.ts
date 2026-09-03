@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { LumaCalendarRow } from "../lib/db/luma-calendars";
 
 // Mock the DB layer so we control what "the table" returns.
-const listMock = vi.fn<[], Promise<LumaCalendarRow[]>>();
+const listMock = vi.fn<() => Promise<LumaCalendarRow[]>>();
 vi.mock("../lib/db/luma-calendars", () => ({
   listLumaCalendarRows: () => listMock(),
 }));
