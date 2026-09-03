@@ -33,11 +33,16 @@ deliberate simplification, not an omission.
 
 ## Decisions (confirmed)
 
-- **Entry points:** a standalone, **admin-gated** `/add-calendar` page is the
-  single path to connect a calendar (bulk pre-register regions + set up its
-  webhook). The public `/add-event` page does **not** expose key fields; when it
-  hits an unconnected calendar it shows an "ask an admin to add this calendar via
-  /add-calendar" message. (No public just-in-time key reveal.)
+- **Entry points (copy office-hours/Build Bar UI almost exactly):** two paths.
+  (1) The public `/add-event` page keeps its just-in-time reveal: paste a Luma
+  event whose calendar isn't connected and the form reveals an amber "Connect
+  this Luma calendar (one-time)" block with API key / webhook signing secret /
+  calendar URL / short-id fields inline — port the office-hours `AddEventForm`
+  reveal verbatim, minus the Slack-channel field (Notion 101 has no Slack
+  routing). (2) A standalone `/add-calendar` page (office-hours `AddCalendarForm`
+  nearly verbatim) for pre-connecting a calendar without an event — but
+  **admin-gated** here (see gating below), unlike office-hours where it is
+  public.
 - **Schema apply:** append to `lib/db/schema.sql` as idempotent statements,
   matching the existing pattern; applied against Neon the same way `schema.sql`
   is applied today. No migration runner introduced.
@@ -53,7 +58,12 @@ deliberate simplification, not an omission.
   matcher. No form-token needed. The dashboard password (`NoseyKnowsBest`) is set
   as the `DASHBOARD_PASSWORD` env var in Vercel (and `.env.local` for local) —
   never committed to the repo. (`.env.local` does not deploy; prod config is
-  Vercel env vars.)
+  Vercel env vars.) Note (intentional, matches office-hours): the public
+  `/add-event` JIT reveal can also connect a calendar without a session — the
+  gate on `/add-calendar` only restricts the standalone bulk page, not
+  calendar-connection in general. Both connect paths still require the organizer
+  to supply a valid Luma key (validated before store), so this is self-service,
+  not an open door.
 
 ## Section 1 — Data layer
 
@@ -191,6 +201,11 @@ exact webhook URL to paste into Luma and (b) which events to subscribe to
 
 ### `lib/events/onboard.ts` (new)
 
+- `resolveNewCalendarEvent({ lumaEvent, apiKey })` — validate a pasted key
+  **against that exact event** (drives the `/add-event` JIT reveal): list the
+  key's upcoming events, match by id or vanity slug. Returns
+  `{ eventId, calendarId, city }`. Proves the key is correct and yields the
+  calendar id + city.
 - `connectCalendar({ slug, apiKey, webhookSecret, calendarUrl, city? })` —
   validate-before-store (the list call doubles as validation; an empty list from
   a valid key is still OK), derive `cal-…` id from `calendarUrl` or first event,
@@ -205,29 +220,38 @@ exact webhook URL to paste into Luma and (b) which events to subscribe to
 
 ### API routes
 
-- `app/api/add-event/route.ts` (existing, form-token protected) — extend: if the
-  event resolves to no connected calendar → `{ ok:false, needsCalendar:true }`
-  with a message directing the organizer to ask an admin. **No key fields** are
-  accepted here; calendar connection never happens on this public endpoint.
+- `app/api/add-event/route.ts` (existing, form-token protected) — extend to
+  accept optional `calendarApiKey`, `calendarWebhookSecret`, `calendarUrl`,
+  `calendarSlug`. If the event resolves to no connected calendar **and** no key
+  was supplied → `{ ok:false, needsCalendar:true, error }` (triggers the JIT
+  reveal). If a key **was** supplied → `resolveNewCalendarEvent` to validate it
+  against that event, dedupe by `calendarId`, `upsertLumaCalendar`, bust cache,
+  then register. Mirrors office-hours `app/api/hub/add-event/route.ts`.
 - `app/api/add-calendar/route.ts` (new, **session-gated** — verifies the
   dashboard session cookie, no form-token) — `connectCalendar`, fail-loud on a
   key Luma rejects.
 
 ### Pages
 
-- `app/add-event/page.tsx` + form component (public, form-token,
-  iframe-embeddable — unchanged posture) — on `needsCalendar:true`, show an
-  informational callout ("this calendar isn't connected yet — an admin needs to
-  add it via /add-calendar"). No key/secret inputs.
+- `app/add-event/page.tsx` + its form component (public, form-token,
+  iframe-embeddable — unchanged posture) — port the office-hours `AddEventForm`
+  JIT reveal: on `needsCalendar:true`, reveal the amber "Connect this Luma
+  calendar (one-time)" block with `calendarApiKey`, `calendarWebhookSecret`,
+  `calendarUrl`, `calendarSlug` inputs and the same helper copy (where to find
+  the `secret-…` key in Luma; add a webhook pointing at the shown
+  `/api/webhooks/luma` URL for live guest sync; "Ask Nancy Chen to help you if
+  you're stuck"). Drop the Slack-channel field. Resubmit connects + registers.
 - `app/add-calendar/page.tsx` + new form component (**session-gated**, like
-  `/volunteers`) — fields: slug, apiKey, webhookSecret, calendarUrl, city
-  (optional). Helper text surfaces the exact `/api/webhooks/luma` URL to paste
-  into Luma and which guest events to subscribe to (for live check-in). Success
-  shows the resolved calendar id + city.
+  `/volunteers`) — port the office-hours `AddCalendarForm` nearly verbatim:
+  fields slug, apiKey, webhookSecret (with helper text showing the exact
+  `/api/webhooks/luma` URL to paste into Luma + which guest events to subscribe
+  to for live check-in), calendarUrl, city (optional). Success shows the
+  resolved calendar id + city. Since it's session-gated, no form-token is
+  needed.
 - `middleware.ts` — add `/add-calendar` to the allowlist matcher
   (`["/", "/feedback", "/volunteers", "/settings/:path*", "/add-calendar"]`) so
   it sits behind the dashboard login. `/add-event` stays out of the matcher
-  (remains public).
+  (remains public, form-token protected).
 
 ## Section 6 — Testing
 
@@ -255,11 +279,8 @@ Unit tests (Vitest, matching existing `tests/`):
 - **No Slack routing** (office-hours has it; Notion 101 does not).
 - **Add-only.** No UI for editing/removing calendars in this pass.
 - **No automated webhook creation.** Luma's public API has no webhook-create
-  endpoint; the admin sets the webhook up in Luma's dashboard using the URL +
-  instructions the `/add-calendar` form provides. Revisit if Luma ships an API.
-- **No public just-in-time calendar connect.** Calendar connection is
-  admin-only via `/add-calendar`; `/add-event` only surfaces an "ask an admin"
-  message for unconnected calendars.
+  endpoint; the admin/organizer sets the webhook up in Luma's dashboard using the
+  URL + instructions the forms provide. Revisit if Luma ships an API.
 
 ## Reference
 
