@@ -29,6 +29,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
+  // TEMP (debug): capture the real Luma webhook payload shape so we can fix
+  // parseGuestWebhook against it. Remove once the parser is confirmed.
+  await logSync({ direction: "luma_in", result: "applied", action: "raw_capture", note: raw.slice(0, 1800) });
+
   const parsed = parseGuestWebhook(body);
   if (!parsed) return NextResponse.json({ received: true, ignored: "no guest" });
 
