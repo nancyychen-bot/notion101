@@ -3,6 +3,10 @@ import { AddCalendarForm } from "@/components/AddCalendarForm";
 
 export const metadata = { title: "Connect a Luma calendar" };
 
+// Render per-request so the shown webhook URL reflects the deployment's
+// APP_BASE_URL at runtime, not whatever was set at build time.
+export const dynamic = "force-dynamic";
+
 export default function AddCalendarPage() {
   const webhookUrl = `${env.app.baseUrl()}/api/webhooks/luma`;
   return (
