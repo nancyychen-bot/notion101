@@ -26,13 +26,13 @@ export interface BuildInviteInput {
 }
 
 /**
- * Build a single VCALENDAR/VEVENT ICS string for one event.
- * METHOD:REQUEST so calendar clients render an invite.
+ * Build a single VCALENDAR/VEVENT ICS string for one event, as a METHOD:PUBLISH
+ * add-to-calendar event (see the body comment for why not REQUEST).
  * If `endsAt` is missing/null/unparseable, defaults to start + 1 hour.
  *
  * @param input      Event fields (uid, summary, startsAt, endsAt, location, description, attendeeEmail)
  * @param fromEmail  ORGANIZER email address (bare, no display name)
- * @param dtstampIso ISO timestamp for DTSTAMP
+ * @param dtstampIso ISO timestamp for DTSTAMP (also drives SEQUENCE)
  */
 export function buildInvite(
   input: BuildInviteInput,
@@ -44,23 +44,32 @@ export function buildInvite(
     input.endsAt && !Number.isNaN(new Date(input.endsAt).getTime())
       ? new Date(input.endsAt)
       : new Date(start.getTime() + 60 * 60_000); // default: start + 1 hour
+  // Monotonic SEQUENCE from the stamp time so a re-send always increases;
+  // calendar clients ignore a lower/equal sequence for the same UID.
+  const seq = Math.max(0, Math.floor(new Date(dtstampIso).getTime() / 1000));
 
+  // METHOD:PUBLISH (add-to-calendar), NOT REQUEST (invitation): with PUBLISH +
+  // RSVP=FALSE the attendee's calendar does NOT email an RSVP reply to the
+  // ORGANIZER on accept/decline. Our From is a send-only noreply mailbox that
+  // 550-bounces those replies back to the guest. Same fix as office-hours; the
+  // content-type method (inviteAttachment) must also be PUBLISH to match.
   const lines: (string | null)[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Notion 101//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:REQUEST",
+    "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${esc(input.uid)}`,
+    `SEQUENCE:${seq}`,
     `DTSTAMP:${stamp(dtstampIso)}`,
     `DTSTART:${stamp(start.toISOString())}`,
     `DTEND:${stamp(endDate.toISOString())}`,
     `SUMMARY:${esc(input.summary)}`,
     input.location ? `LOCATION:${esc(input.location)}` : null,
     input.description ? `DESCRIPTION:${esc(input.description)}` : null,
-    `ORGANIZER:mailto:${fromEmail}`,
-    `ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:${input.attendeeEmail}`,
+    `ORGANIZER;CN=Notion 101:mailto:${fromEmail}`,
+    `ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:${input.attendeeEmail}`,
     "STATUS:CONFIRMED",
     "END:VEVENT",
     "END:VCALENDAR",
