@@ -30,7 +30,7 @@ export async function sendGuestEmail(guestId: string, kind: EmailKind): Promise<
       guestName: g.name,
       eventName: ev?.name ?? null,
       eventDate: formatDate(ev?.start_at ?? null),
-      location: null,
+      location: ev?.location ?? null,
       surveyUrl: ev?.survey_url ?? env.app.surveyUrl() ?? null,
       freeTrialUrl: env.app.freeTrialUrl(),
       eventUrl: ev?.public_url ?? null,

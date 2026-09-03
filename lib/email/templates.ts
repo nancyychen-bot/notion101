@@ -41,10 +41,10 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     subject: "You're in — {{eventName}} 🎉",
     body: b(
       "Hi {{firstName}},", "",
-      "Great news — you're **approved for {{eventName}}**. We can't wait to build with you!", "",
-      "A calendar invite is attached so the time is locked in.", "",
-      "Event page: {{eventUrl}}", "",
-      "On a Free plan? **[Start a free Notion trial]({{trialLink}})** before you come.", "",
+      "Great news — you're **approved for {{eventName}}**! We can't wait to build with you. 🎉", "",
+      "{{sessionDetails}}", "",
+      "📅 A calendar invite is attached so the time is locked in. You can also [view the event page]({{eventUrl}}).", "",
+      "On a Free plan? **[Start a free Notion trial]({{trialLink}})** before you come — you'll get much more out of the session.", "",
       "See you soon,", SIGNOFF,
     ),
   },
@@ -55,8 +55,8 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     subject: "An update on your {{eventName}} registration",
     body: b(
       "Hi {{firstName}},", "",
-      "Thanks so much for your interest in **{{eventName}}**. Unfortunately we weren't able to confirm you a spot this time — these sessions fill up fast.", "",
-      "We'd love to see you at a future event. In the meantime, you can keep building: **[start a free Notion trial]({{trialLink}})**.", "",
+      "Thanks so much for your interest in **{{eventName}}**. Unfortunately we couldn't confirm you a spot this time — these sessions fill up fast.", "",
+      "We'd love to see you at a future one. In the meantime, keep building: **[start a free Notion trial]({{trialLink}})**.", "",
       "Thanks,", SIGNOFF,
     ),
   },
@@ -68,7 +68,8 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     body: b(
       "Hi {{firstName}},", "",
       "You're **confirmed for {{eventName}}** — we can't wait to build with you!", "",
-      "Before you arrive, **[start your free Notion trial]({{trialLink}})** — it takes about a minute. You'll get much more out of the session with a full-featured workspace ready to go.", "",
+      "{{sessionDetails}}", "",
+      "One thing before you arrive: **[start your free Notion trial]({{trialLink}})** — it takes about a minute. You'll get much more out of the session with a full-featured workspace ready to go.", "",
       "See you soon,", SIGNOFF,
     ),
   },
@@ -80,6 +81,7 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     body: b(
       "Hi {{firstName}},", "",
       "Quick reminder — **{{eventName}}** is **tomorrow**. We can't wait to build with you!", "",
+      "{{sessionDetails}}", "",
       "**Before you come:**",
       "✅ Bring your laptop + the workspace or question you want help with",
       "✅ **[Start your free Notion trial]({{trialLink}})** if you haven't yet (about a minute)", "",
@@ -94,6 +96,7 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     body: b(
       "Hi {{firstName}},", "",
       "Quick reminder — **{{eventName}}** is **tomorrow**. We can't wait to build with you!", "",
+      "{{sessionDetails}}", "",
       "**What to bring:**",
       "✅ Your laptop + the workspace or question you want help with", "",
       "See you tomorrow,", SIGNOFF,
@@ -118,7 +121,9 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
 export const PLACEHOLDERS: Array<{ token: string; desc: string }> = [
   { token: "{{firstName}}", desc: "Guest's first name (falls back to 'there')" },
   { token: "{{eventName}}", desc: "Event name (falls back to 'Notion 101')" },
+  { token: "{{sessionDetails}}", desc: "Auto-built 🗓 date / 📍 location block (only the lines we have)" },
   { token: "{{eventDate}}", desc: "Event date, e.g. Monday, December 18" },
+  { token: "{{location}}", desc: "Event location/city (blank if unknown)" },
   { token: "{{eventUrl}}", desc: "Public Luma event page" },
   { token: "{{trialLink}}", desc: "Free Notion trial URL" },
   { token: "{{feedbackLink}}", desc: "Post-event feedback form URL" },
@@ -126,12 +131,23 @@ export const PLACEHOLDERS: Array<{ token: string; desc: string }> = [
 
 const firstName = (n: string | null) => (n ?? "there").trim().split(/\s+/)[0] || "there";
 
+/** A scannable date/location block — only the lines we actually have, so an empty
+ * value never leaves a stray "📍" behind (mirrors office-hours' guestSessionLines). */
+function sessionDetails(f: EmailFields): string {
+  const lines: string[] = [];
+  if (f.eventDate) lines.push(`🗓  ${f.eventDate}`);
+  if (f.location) lines.push(`📍  ${f.location}`);
+  return lines.join("\n");
+}
+
 /** Map EmailFields → placeholder token values. */
 export function buildVars(f: EmailFields): Record<string, string> {
   return {
     firstName: firstName(f.guestName),
     eventName: f.eventName ?? "Notion 101",
     eventDate: f.eventDate ?? "",
+    location: f.location ?? "",
+    sessionDetails: sessionDetails(f),
     eventUrl: f.eventUrl ?? "",
     trialLink: f.freeTrialUrl,
     feedbackLink: f.surveyUrl ?? f.freeTrialUrl,
@@ -151,7 +167,7 @@ export const SAMPLE_FIELDS: EmailFields = {
   guestName: "Ada Lovelace",
   eventName: "Notion 101 for Small Businesses",
   eventDate: "Monday, December 18",
-  location: null,
+  location: "New York",
   surveyUrl: "https://example.com/feedback",
   freeTrialUrl: "https://www.notion.so/product",
   eventUrl: "https://luma.com/notion101",
