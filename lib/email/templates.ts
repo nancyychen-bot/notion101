@@ -55,7 +55,7 @@ export const TEMPLATE_REGISTRY: Record<EmailKind, TemplateDef> = {
     subject: "An update on your {{eventName}} registration",
     body: b(
       "Hi {{firstName}},", "",
-      "Thanks so much for your interest in **{{eventName}}**. Unfortunately we couldn't confirm you a spot this time — these sessions fill up fast.", "",
+      "Thanks so much for your interest in **{{eventName}}**. Unfortunately this session is now at capacity, so we couldn't confirm you a spot this time.", "",
       "We'd love to see you at a future one. In the meantime, keep building: **[start a free Notion trial]({{trialLink}})**.", "",
       "Thanks,", SIGNOFF,
     ),

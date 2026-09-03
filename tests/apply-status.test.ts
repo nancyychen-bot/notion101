@@ -19,11 +19,11 @@ function deps() {
 }
 
 describe("applyStatus", () => {
-  it("approve: writes Luma, sends approval email, mirrors to Notion", async () => {
+  it("approve: writes Luma & mirrors to Notion, but sends NO email (Luma sends its own)", async () => {
     const d = deps();
     await applyStatus(guest, "approved", d);
     expect(d.updateGuestOnLuma).toHaveBeenCalledWith("evt-1", "gst-1", "approved");
-    expect(d.sendEmail).toHaveBeenCalledWith("g1", "approved");
+    expect(d.sendEmail).not.toHaveBeenCalled();
     expect(d.setLumaStatus).toHaveBeenCalledWith("g1", "approved");
     expect(d.pushToNotion).toHaveBeenCalled();
   });

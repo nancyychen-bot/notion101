@@ -273,8 +273,10 @@ export async function updateGuestStatus(params: {
       event_id: params.eventLumaId,
       guest_id: params.guestLumaId,
       status: LUMA_API_STATUS[params.status],
-      // We send our own approval/decline emails via Resend, so never let Luma email.
-      send_email: false,
+      // Let Luma send its own "You're in" on approval (we intentionally don't send
+      // an approved email — avoids a duplicate), but suppress Luma's decline email
+      // since we send our own, nicer decline via Resend.
+      send_email: params.status === "approved",
     }),
   });
   if (!res.ok) {

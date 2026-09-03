@@ -11,9 +11,10 @@ export interface ApplyStatusDeps {
   log: (e: { action: string; note?: string; error?: boolean }) => Promise<void>;
 }
 
-/** Email kind to send for a status transition (none for waitlist/pending). */
+/** Email kind to send for a status transition (none for waitlist/pending).
+ * NOTE: no "approved" email — Luma already sends its own "You're in" on approval,
+ * so we don't duplicate it. We only send our own decline email. */
 const EMAIL_FOR: Partial<Record<LumaStatus, EmailKind>> = {
-  approved: "approved",
   declined: "decline",
 };
 
