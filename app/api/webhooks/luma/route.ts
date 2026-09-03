@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   // TEMP (debug): capture the real Luma webhook payload shape so we can fix
   // parseGuestWebhook against it. Remove once the parser is confirmed.
-  await logSync({ direction: "luma_in", result: "applied", action: "raw_capture", note: raw.slice(0, 1800) });
+  await logSync({ direction: "luma_in", result: "applied", action: "raw_capture", note: raw.replace(/"description":"(?:[^"\\]|\\.){0,4000}"/, '"description":"[stripped]"').slice(0, 6000) });
 
   const parsed = parseGuestWebhook(body);
   if (!parsed) return NextResponse.json({ received: true, ignored: "no guest" });
