@@ -4,7 +4,7 @@
     { "path": "/api/cron/reminders", "schedule": "0 15 * * *" },
     { "path": "/api/cron/survey", "schedule": "0 * * * *" },
     { "path": "/api/cron/comms-retry", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/reconcile", "schedule": "0 * * * *" },
+    { "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/feedback-import", "schedule": "0 * * * *" },
     { "path": "/api/cron/volunteer-feedback-import", "schedule": "0 * * * *" }
   ]
