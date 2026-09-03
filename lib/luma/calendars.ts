@@ -76,7 +76,9 @@ export async function apiKeyForCalendar(id: string | null | undefined): Promise<
 export async function calendarUrlForCalendar(id: string | null | undefined): Promise<string | null> {
   const cid = id || "default";
   const fromDb = (await load()).urls.get(cid);
-  if (fromDb) return fromDb;
+  // Only fall through to env when the calendar has NO DB row at all (undefined).
+  // A DB row that exists with an explicit null url means "no url" — don't bleed env.
+  if (fromDb !== undefined) return fromDb;
   const suffix = cid === "default" ? "" : `_${cid.toUpperCase()}`;
   return process.env[`LUMA_CALENDAR_URL${suffix}`] || null;
 }

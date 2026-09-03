@@ -82,4 +82,18 @@ describe("calendarUrlForCalendar", () => {
     expect(await calendarUrlForCalendar("korea")).toBe("https://luma.com/notion-korea");
     expect(await calendarUrlForCalendar("default")).toBeNull();
   });
+
+  it("does not bleed the env url through when a DB row has an explicit null url", async () => {
+    process.env.LUMA_CALENDAR_URL_KOREA = "https://env.example/korea";
+    listMock.mockResolvedValue([
+      { id: "korea", apiKey: "k", webhookSecret: null, calendarId: null, city: null, calendarUrl: null },
+    ]);
+    expect(await calendarUrlForCalendar("korea")).toBeNull();
+  });
+
+  it("falls back to the env url when the calendar has no DB row", async () => {
+    process.env.LUMA_CALENDAR_URL = "https://env.example/default";
+    listMock.mockResolvedValue([]);
+    expect(await calendarUrlForCalendar("default")).toBe("https://env.example/default");
+  });
 });
