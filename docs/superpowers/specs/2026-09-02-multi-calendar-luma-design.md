@@ -58,12 +58,14 @@ deliberate simplification, not an omission.
   matcher. No form-token needed. The dashboard password (`NoseyKnowsBest`) is set
   as the `DASHBOARD_PASSWORD` env var in Vercel (and `.env.local` for local) —
   never committed to the repo. (`.env.local` does not deploy; prod config is
-  Vercel env vars.) Note (intentional, matches office-hours): the public
-  `/add-event` JIT reveal can also connect a calendar without a session — the
-  gate on `/add-calendar` only restricts the standalone bulk page, not
-  calendar-connection in general. Both connect paths still require the organizer
-  to supply a valid Luma key (validated before store), so this is self-service,
-  not an open door.
+  Vercel env vars.) **Connecting a calendar always requires the dashboard
+  session** — matching office-hours exactly: `/add-calendar` is session-gated by
+  middleware, and the `/add-event` JIT reveal, while shown publicly, only
+  *submits* successfully when a valid session cookie is present (the route checks
+  `operatorAuthed()` when a `calendarApiKey` is posted, else 401 "ask Nancy Chen,
+  or pre-register at /add-calendar"). Adding an event to an **already-connected**
+  calendar stays fully public (form-token only). Since `/api/*` routes are not in
+  the middleware matcher, both routes verify the session themselves.
 
 ## Section 1 — Data layer
 
