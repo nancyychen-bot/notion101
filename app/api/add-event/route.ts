@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { verifyFormToken } from "@/lib/auth/form-token";
-import { isValidSession, SESSION_COOKIE } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { registerEventFromLuma, CalendarNotConnectedError } from "@/lib/events/register";
 import { resolveNewCalendarEvent, resolveCalendarSlug, CalendarSlugTakenError } from "@/lib/events/onboard";
@@ -21,12 +19,6 @@ interface Body {
   calendarSlug?: string;
 }
 
-/** Connecting a NEW calendar writes credentials, so it requires the dashboard
- * session. Adding events to already-connected calendars stays public (form-token). */
-async function operatorAuthed(): Promise<boolean> {
-  return isValidSession((await cookies()).get(SESSION_COOKIE)?.value, env.dashboard.sessionSecret());
-}
-
 export async function POST(req: Request) {
   const body = (await req.json()) as Body;
   const { lumaLink, token } = body;
@@ -44,15 +36,11 @@ export async function POST(req: Request) {
   const calendarSlug = body.calendarSlug?.trim() || undefined;
 
   try {
-    // New-calendar path: a key was pasted for an unconnected calendar. Requires
-    // an operator login, then validates the key against the event and stores it.
+    // New-calendar path: a key was pasted for an unconnected calendar. Public,
+    // self-service (form-token only, no login) so the link works for everyone —
+    // including inside the Notion iframe where a session cookie isn't sent. The
+    // key is validated against the event before it's stored.
     if (calendarApiKey) {
-      if (!(await operatorAuthed())) {
-        return NextResponse.json({
-          ok: false,
-          error: "Connecting a new calendar requires a dashboard login — ask Nancy Chen, or pre-register it at /add-calendar.",
-        }, { status: 401 });
-      }
       if (!calendarUrl) {
         return NextResponse.json({ ok: false, error: "A Luma calendar URL is required to connect a new calendar." }, { status: 400 });
       }
